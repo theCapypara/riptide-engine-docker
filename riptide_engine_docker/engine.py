@@ -10,7 +10,7 @@ from riptide.config.document.config import Config
 from riptide.config.document.project import Project
 from riptide.engine.abstract import AbstractEngine
 from riptide_engine_docker import network, service, path_utils
-from riptide_engine_docker import cmd_detached
+from riptide_engine_docker.cmd_detached import cmd_detached
 from riptide_engine_docker.service import get_container_name, RIPTIDE_DOCKER_LABEL_HTTP_PORT
 from riptide.engine.project_start_ctx import riptide_start_project_ctx
 from riptide.engine.results import StartStopResultStep, MultiResultQueue, ResultQueue, ResultError
