@@ -3,8 +3,8 @@ import os
 from docker import DockerClient
 from docker.errors import NotFound, ContainerError
 
-from riptide.config.files import riptide_assets_dir
-from riptide_engine_docker import create_mounts
+from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.mounts import create_mounts
 from riptide_engine_docker.network import get_network_name
 from riptide_engine_docker.service import ENTRYPOINT_CONTAINER_PATH, parse_entrypoint, EENV_NO_STDOUT_REDIRECT, \
     EENV_RUN_MAIN_CMD_AS_USER, EENV_USER, EENV_GROUP
@@ -29,7 +29,7 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
     # Collect volumes
     volumes = command.collect_volumes()
     # Add custom entrypoint as volume
-    entrypoint_script = os.path.join(riptide_assets_dir(), 'engine', 'docker', 'entrypoint.sh')
+    entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), 'entrypoint.sh')
     volumes[entrypoint_script] = {'bind': ENTRYPOINT_CONTAINER_PATH, 'mode': 'ro'}
     mounts = create_mounts(volumes)
 

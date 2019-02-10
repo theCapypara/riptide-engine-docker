@@ -5,9 +5,11 @@ from typing import List
 from docker.errors import NotFound, APIError
 
 from riptide.config.document.project import Project
-from riptide.config.files import CONTAINER_SRC_PATH, get_current_relative_src_path, riptide_assets_dir
+from riptide.config.files import CONTAINER_SRC_PATH, get_current_relative_src_path
 from riptide.engine.abstract import ExecError
-from riptide_engine_docker import create_cli_mount_strings
+
+from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.mounts import create_cli_mount_strings
 from riptide_engine_docker.network import get_network_name
 from riptide_engine_docker.service import get_container_name, ENTRYPOINT_CONTAINER_PATH, EENV_RUN_MAIN_CMD_AS_USER, \
     EENV_USER, EENV_GROUP, EENV_NO_STDOUT_REDIRECT, parse_entrypoint
@@ -81,7 +83,7 @@ def cmd(client, project: Project, command_name: str, arguments: List[str]) -> No
 
     volumes = command_obj.collect_volumes()
     # Add custom entrypoint as volume
-    entrypoint_script = os.path.join(riptide_assets_dir(), 'engine', 'docker', 'entrypoint.sh')
+    entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), 'entrypoint.sh')
     volumes[entrypoint_script] = {'bind': ENTRYPOINT_CONTAINER_PATH, 'mode': 'ro'}
     mounts = create_cli_mount_strings(volumes)
 

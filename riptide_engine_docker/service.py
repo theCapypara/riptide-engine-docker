@@ -9,9 +9,10 @@ from json import JSONDecodeError
 
 from riptide.config.document.config import Config
 from riptide.config.document.service import Service
-from riptide.config.files import riptide_assets_dir
 from riptide.config.service.ports import find_open_port_starting_at
-from riptide_engine_docker import create_mounts
+
+from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.mounts import create_mounts
 from riptide_engine_docker.network import get_network_name
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getuid, getgid
@@ -120,7 +121,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             # Collect volumes
             volumes = service.collect_volumes()
             # Add custom entrypoint as volume
-            entrypoint_script = os.path.join(riptide_assets_dir(), 'engine', 'docker', 'entrypoint.sh')
+            entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), 'entrypoint.sh')
             volumes[entrypoint_script] = {'bind': ENTRYPOINT_CONTAINER_PATH, 'mode': 'ro'}
             mounts = create_mounts(volumes)
 
