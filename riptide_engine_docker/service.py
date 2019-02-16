@@ -66,7 +66,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
     queue.put(StartStopResultStep(current_step=1, steps=None, text='Checking...'))
     try:
         container = client.containers.get(name)
-        if container.status == "exited":
+        if container.status != "running":
             container.remove()
             needs_to_be_started = True
     except NotFound:
@@ -228,7 +228,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         try:
             container = client.containers.get(name)
             if container.status == "exited":
-                extra = " Try run_as_root': true" if user_param else ""
+                extra = " Try 'run_as_root': true" if user_param else ""
                 queue.end_with_error(ResultError("ERROR: Container crashed." + extra, details=container.logs().decode("utf-8")))
                 container.remove()
                 return
