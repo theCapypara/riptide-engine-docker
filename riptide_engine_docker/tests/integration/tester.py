@@ -1,3 +1,5 @@
+from typing import Union
+
 from docker.errors import NotFound
 from warnings import warn
 
@@ -65,3 +67,12 @@ class DockerEngineTester(AbstractEngineTester):
         if env_return == '/bin/sh: 1: %s: RIPTIDE___TEST___NOT_SET' % env:
             return None
         return env_return
+
+    def get_file(self, file, engine, project, service) -> Union[str, None]:
+        container = self._get_container(engine, project, service)
+
+        exit_code, env_return = container.exec_run(cmd='cat %s' % file, stderr=False)
+        assert exit_code == 0 or exit_code == 1
+        if exit_code == 1:
+            return None  # File not found
+        return env_return.decode('utf-8')
