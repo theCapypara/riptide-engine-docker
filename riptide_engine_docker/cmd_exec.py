@@ -9,6 +9,7 @@ from riptide.config.files import CONTAINER_SRC_PATH, get_current_relative_src_pa
 from riptide.engine.abstract import ExecError
 
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
 from riptide_engine_docker.mounts import create_cli_mount_strings
 from riptide_engine_docker.network import get_network_name
 from riptide_engine_docker.service import get_container_name, ENTRYPOINT_CONTAINER_PATH, EENV_RUN_MAIN_CMD_AS_USER, \
@@ -74,6 +75,7 @@ def cmd(client, project: Project, command_name: str, arguments: List[str]) -> No
     # Containers are run as root, just like the services the entrypoint script manages the rest
     shell = [
         "docker", "run",
+        "--label", "%s=1" % RIPTIDE_DOCKER_LABEL_IS_RIPTIDE,
         "--rm",
         "-it",
         "-w", CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project),

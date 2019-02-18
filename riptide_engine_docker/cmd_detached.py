@@ -4,6 +4,7 @@ from docker import DockerClient
 from docker.errors import NotFound, ContainerError
 
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
 from riptide_engine_docker.mounts import create_mounts
 from riptide_engine_docker.network import get_network_name
 from riptide_engine_docker.service import ENTRYPOINT_CONTAINER_PATH, parse_entrypoint, EENV_NO_STDOUT_REDIRECT, \
@@ -60,7 +61,8 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
             mounts=mounts,
             environment=environment,
             network=get_network_name(project["name"]),
-            remove=True
+            remove=True,
+            labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
         )
         return 0, output
     except ContainerError as err:

@@ -12,15 +12,12 @@ from riptide.config.document.service import Service
 from riptide.config.service.ports import find_open_port_starting_at
 
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, RIPTIDE_DOCKER_LABEL_SERVICE, \
+    RIPTIDE_DOCKER_LABEL_PROJECT, RIPTIDE_DOCKER_LABEL_MAIN, RIPTIDE_DOCKER_LABEL_HTTP_PORT
 from riptide_engine_docker.mounts import create_mounts
 from riptide_engine_docker.network import get_network_name
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getuid, getgid
-
-RIPTIDE_DOCKER_LABEL_MAIN = "riptide_main"
-RIPTIDE_DOCKER_LABEL_SERVICE = "riptide_service"
-RIPTIDE_DOCKER_LABEL_PROJECT = "riptide_project"
-RIPTIDE_DOCKER_LABEL_HTTP_PORT = "riptide_port"
 
 NO_START_STEPS = 6
 
@@ -108,6 +105,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
 
         # Collect labels
         labels = {
+            RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
             RIPTIDE_DOCKER_LABEL_PROJECT: project_name,
             RIPTIDE_DOCKER_LABEL_SERVICE: service["$name"],
             RIPTIDE_DOCKER_LABEL_MAIN: "0"
@@ -190,6 +188,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     environment=environment,
                     ports=ports,
                     network=get_network_name(project_name),
+                    labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'},
                     working_dir=workdir
                 )
             except (APIError, ContainerError) as err:
