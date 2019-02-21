@@ -178,7 +178,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 # TODO: Keyboard interrupt support
                 client.containers.run(
                     image=service["image"],
-                    entrypoint="/bin/sh -c '" + cmd + "'",
+                    entrypoint=["/bin/sh", "-c", cmd],
                     detach=False,
                     remove=True,
                     name=name + "__pre_start" + str(cmd_no),
@@ -243,7 +243,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             try:
                 # TODO: Keyboard interrupt support (shutdown then!)
                 container.exec_run(
-                    cmd="/bin/sh -c '" + cmd + "'",
+                    cmd=["/bin/sh", "-c", cmd],
                     detach=False,
                     tty=True,
                     user=user_param
