@@ -104,8 +104,8 @@ class DockerEngine(AbstractEngine):
 
         cmd(self.client, project, command_name, arguments)
 
-    def exec(self, project: Project, service_name: str, cols=None, lines=None) -> None:
-        service_exec(self.client, project, service_name, cols, lines)
+    def exec(self, project: Project, service_name: str, cols=None, lines=None, root=False) -> None:
+        service_exec(self.client, project, service_name, cols, lines, root)
 
     def supports_exec(self):
         return True

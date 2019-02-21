@@ -17,7 +17,7 @@ from riptide_engine_docker.service import get_container_name, ENTRYPOINT_CONTAIN
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
 
-def service_exec(client, project: Project, service_name: str, cols=None, lines=None) -> None:
+def service_exec(client, project: Project, service_name: str, cols=None, lines=None, root=False) -> None:
     if service_name not in project["app"]["services"]:
         raise ExecError("Service not found.")
 
@@ -34,7 +34,9 @@ def service_exec(client, project: Project, service_name: str, cols=None, lines=N
             raise ExecError('The service is not running. Try starting it first.')
 
         # TODO: The Docker Python API doesn't seem to support interactive exec - use pty.spawn for now
-        shell = ["docker", "exec", "-it", "-u", str(user) + ":" + str(user_group)]
+        shell = ["docker", "exec", "-it"]
+        if not root:
+            shell += ["-u", str(user) + ":" + str(user_group)]
         if cols and lines:
             # Add COLUMNS and LINES env variables
             shell += ['-e', 'COLUMNS=' + str(cols), '-e', 'LINES=' + str(lines)]
