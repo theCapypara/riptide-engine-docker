@@ -2,7 +2,7 @@ import os
 import riptide.lib.cross_platform.cppty as pty
 from typing import List
 
-from docker.errors import NotFound, APIError
+from docker.errors import NotFound, APIError, ImageNotFound
 
 from riptide.config.document.project import Project
 from riptide.config.files import CONTAINER_SRC_PATH, get_current_relative_src_path
@@ -74,7 +74,15 @@ def cmd(client, project: Project, command_name: str, arguments: List[str]) -> No
         image = client.images.get(command_obj["image"])
     except NotFound:
         print("Riptide: Pulling image... Your command will be run after that.")
-        client.api.pull(command_obj['image'] if ":" in command_obj['image'] else command_obj['image'] + ":latest")
+        try:
+            client.api.pull(command_obj['image'] if ":" in command_obj['image'] else command_obj['image'] + ":latest")
+        except ImageNotFound as ex:
+            print("Riptide: Could not pull. The image was not found. Your command will not run :(")
+            return
+        except APIError as ex:
+            print("Riptide: There was an error pulling the image. Your command will not run :(")
+            print('    ' + str(ex))
+            return
 
     # TODO: The Docker Python API doesn't seem to support interactive run - use pty.spawn for now
     # Containers are run as root, just like the services the entrypoint script manages the rest
