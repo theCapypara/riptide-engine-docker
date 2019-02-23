@@ -35,9 +35,12 @@ class DockerEngineTester(AbstractEngineTester):
 
     def assert_running(self, engine_obj, project, services):
         for service in services:
-            container = self._get_container(engine_obj, project, service)
-            if container.status != 'running':
-                raise AssertionError('Container for service %s must be running' % service['$name'])
+            try:
+                container = self._get_container(engine_obj, project, service)
+                if container.status != 'running':
+                    raise AssertionError('Container for service %s must be running' % service['$name'])
+            except NotFound as err:
+                raise AssertionError('Container for service %s must be running' % service['$name']) from err
 
     def assert_not_running(self, engine_obj, project, services):
         for service in services:
