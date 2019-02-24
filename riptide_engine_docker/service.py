@@ -1,7 +1,7 @@
 import json
 import os
-from random import randint
 from time import sleep
+import threading
 
 from docker import DockerClient
 from docker.errors import NotFound, APIError, ContainerError
@@ -31,9 +31,10 @@ EENV_ORIGINAL_ENTRYPOINT = "RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT"
 EENV_COMMAND_LOG_PREFIX = "RIPTIDE__DOCKER_CMD_LOGGING_"
 EENV_NO_STDOUT_REDIRECT = "RIPTIDE__DOCKER_NO_STDOUT_REDIRECT"
 
-# For services map HTTP main port to a random host port between these ports
+# For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
-DOCKER_ENGINE_HTTP_PORT_BND_END   = 31000
+
+start_lock = threading.Lock()
 
 
 def start(project_name: str, service: Service, client: DockerClient, queue: ResultQueue):
@@ -98,11 +99,6 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 stop(project_name, service["$name"], client)
                 return
 
-        # Get port to bind main HTTP port to
-        main_port = None
-        if "port" in service:
-            main_port = find_open_port_starting_at(randint(DOCKER_ENGINE_HTTP_PORT_BND_START, DOCKER_ENGINE_HTTP_PORT_BND_END))
-
         # Collect labels
         labels = {
             RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -112,8 +108,6 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         }
         if "roles" in service and "main" in service["roles"]:
             labels[RIPTIDE_DOCKER_LABEL_MAIN] = "1"
-        if main_port:
-            labels[RIPTIDE_DOCKER_LABEL_HTTP_PORT] = str(main_port)
 
         try:
             # Collect volumes
@@ -139,9 +133,6 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
 
             # Collect (and process!) additional_ports
             ports = service.collect_ports()
-            # Add main http port binding
-            if main_port:
-                ports[service["port"]] = main_port
 
             # Change user?
             user_param = None if service["run_as_root"] else user
@@ -200,23 +191,32 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         queue.put(StartStopResultStep(current_step=4, steps=NO_START_STEPS, text="Starting Container..."))
 
         try:
-            container = client.containers.run(
-                image=service["image"],
-                entrypoint=[ENTRYPOINT_CONTAINER_PATH],
-                command=image_config["Cmd"] if "command" not in service else service["command"],
-                detach=True,
-                name=name,
-                # user is always root, but EENV_USER may be used to run command with another user using the entrypoint
-                group_add=[user_group],
-                hostname=service["$name"],
-                labels=labels,
-                mounts=mounts,
-                environment=environment,
-                ports=ports,
-                working_dir=workdir
-            )
-            # Add container to network
-            client.networks.get(get_network_name(project_name)).connect(container, aliases=[service["$name"]])
+            # Lock here to prevent race conditions with port assignments and possibly other stuff
+            with start_lock:
+
+                # Get port to bind main HTTP port to
+                if "port" in service:
+                    main_port = find_open_port_starting_at(DOCKER_ENGINE_HTTP_PORT_BND_START)
+                    labels[RIPTIDE_DOCKER_LABEL_HTTP_PORT] = str(main_port)
+                    ports[service["port"]] = main_port
+
+                container = client.containers.run(
+                    image=service["image"],
+                    entrypoint=[ENTRYPOINT_CONTAINER_PATH],
+                    command=image_config["Cmd"] if "command" not in service else service["command"],
+                    detach=True,
+                    name=name,
+                    # user is always root, but EENV_USER may be used to run command with another user using the entrypoint
+                    group_add=[user_group],
+                    hostname=service["$name"],
+                    labels=labels,
+                    mounts=mounts,
+                    environment=environment,
+                    ports=ports,
+                    working_dir=workdir
+                )
+                # Add container to network
+                client.networks.get(get_network_name(project_name)).connect(container, aliases=[service["$name"]])
         except (APIError, ContainerError) as err:
             queue.end_with_error(ResultError("ERROR starting container.", cause=err))
             return
