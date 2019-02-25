@@ -206,7 +206,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     command=image_config["Cmd"] if "command" not in service else service["command"],
                     detach=True,
                     name=name,
-                    # user is always root, but EENV_USER may be used to run command with another user using the entrypoint
+                    user=0,
                     group_add=[user_group],
                     hostname=service["$name"],
                     labels=labels,
