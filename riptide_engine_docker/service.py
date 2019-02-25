@@ -135,8 +135,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             ports = service.collect_ports()
 
             # Change user?
-            user_param = None if service["run_as_root"] else user
-            if user_param:
+            user_param = 0 if service["run_as_root"] else user
+            if service["run_as_root"]:
                 environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
             # user and group are always created in the container, but only if the above ENV is set,
             # the main cmd/entrypoint will be run as non-root
