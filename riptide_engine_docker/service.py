@@ -135,8 +135,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             ports = service.collect_ports()
 
             # Change user?
-            user_param = 0 if service["run_as_root"] else user
-            if service["run_as_root"]:
+            user_param = "0" if service["run_as_root"] else user
+            if not service["run_as_root"]:
                 environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
             # user and group are always created in the container, but only if the above ENV is set,
             # the main cmd/entrypoint will be run as non-root
@@ -206,7 +206,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     command=image_config["Cmd"] if "command" not in service else service["command"],
                     detach=True,
                     name=name,
-                    user=0,
+                    user=str(0),
                     group_add=[user_group],
                     hostname=service["$name"],
                     labels=labels,
@@ -227,7 +227,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         try:
             container = client.containers.get(name)
             if container.status == "exited":
-                extra = " Try 'run_as_root': true" if user_param else ""
+                extra = " Try 'run_as_root': true" if not service["run_as_root"] else ""
                 queue.end_with_error(ResultError("ERROR: Container crashed." + extra, details=container.logs().decode("utf-8")))
                 container.remove()
                 return
