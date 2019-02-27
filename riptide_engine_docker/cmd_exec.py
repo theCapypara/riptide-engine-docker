@@ -72,6 +72,7 @@ def cmd(client, project: Project, command_name: str, arguments: List[str]) -> No
     # Check if image exists
     try:
         image = client.images.get(command_obj["image"])
+        image_config = client.api.inspect_image(command_obj["image"])["Config"]
     except NotFound:
         print("Riptide: Pulling image... Your command will be run after that.")
         try:
@@ -117,10 +118,12 @@ def cmd(client, project: Project, command_name: str, arguments: List[str]) -> No
     for key, value in environment.items():
         shell += ['-e', key + '=' + value]
 
+    command = command_obj["command"] if "command" in command_obj else " ".join(image_config["Cmd"])
+
     shell += [
         "--entrypoint", ENTRYPOINT_CONTAINER_PATH,
         command_obj["image"],
-        command_obj["command"] + " " + " ".join('"{0}"'.format(w) for w in arguments)
+        command + " " + " ".join('"{0}"'.format(w) for w in arguments)
     ]
 
     pty.spawn(shell, win_repeat_argv0=True)
