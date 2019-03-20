@@ -5,14 +5,14 @@ from warnings import warn
 
 from riptide.tests.integration.engine.tester_for_engine import AbstractEngineTester
 from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
-from riptide_engine_docker.service import get_container_name
+from riptide_engine_docker.names import get_service_container_name
 
 
 class DockerEngineTester(AbstractEngineTester):
 
     def _get_container(self, engine_obj, project, service):
         client = engine_obj.client
-        container_name = get_container_name(project["name"], service["$name"])
+        container_name = get_service_container_name(project["name"], service["$name"])
         return client.containers.get(container_name)
 
     def reset(self, engine_obj):

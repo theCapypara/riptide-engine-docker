@@ -12,24 +12,17 @@ from riptide.config.document.service import Service
 from riptide.config.service.ports import find_open_port_starting_at
 
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.constants import ENTRYPOINT_CONTAINER_PATH, EENV_USER, EENV_GROUP, EENV_RUN_MAIN_CMD_AS_USER, \
+    EENV_COMMAND_LOG_PREFIX
+from riptide_engine_docker.entrypoint import parse_entrypoint
 from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, RIPTIDE_DOCKER_LABEL_SERVICE, \
     RIPTIDE_DOCKER_LABEL_PROJECT, RIPTIDE_DOCKER_LABEL_MAIN, RIPTIDE_DOCKER_LABEL_HTTP_PORT
 from riptide_engine_docker.mounts import create_mounts
-from riptide_engine_docker.network import get_network_name
+from riptide_engine_docker.names import get_network_name, get_service_container_name
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
 NO_START_STEPS = 6
-
-ENTRYPOINT_CONTAINER_PATH = '/entrypoint_riptide.sh'
-
-EENV_DONT_RUN_CMD = "RIPTIDE__DOCKER_DONT_RUN_CMD"
-EENV_USER = "RIPTIDE__DOCKER_USER"
-EENV_GROUP = "RIPTIDE__DOCKER_GROUP"
-EENV_RUN_MAIN_CMD_AS_USER = "RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER"
-EENV_ORIGINAL_ENTRYPOINT = "RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT"
-EENV_COMMAND_LOG_PREFIX = "RIPTIDE__DOCKER_CMD_LOGGING_"
-EENV_NO_STDOUT_REDIRECT = "RIPTIDE__DOCKER_NO_STDOUT_REDIRECT"
 
 # For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
@@ -57,7 +50,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
     user = getuid()
     user_group = getgid()
 
-    name = get_container_name(project_name, service["$name"])
+    name = get_service_container_name(project_name, service["$name"])
     needs_to_be_started = False
 
     # 1. Check if already running
@@ -100,14 +93,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 return
 
         # Collect labels
-        labels = {
-            RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
-            RIPTIDE_DOCKER_LABEL_PROJECT: project_name,
-            RIPTIDE_DOCKER_LABEL_SERVICE: service["$name"],
-            RIPTIDE_DOCKER_LABEL_MAIN: "0"
-        }
-        if "roles" in service and "main" in service["roles"]:
-            labels[RIPTIDE_DOCKER_LABEL_MAIN] = "1"
+        labels = collect_labels(service, project_name)
 
         try:
             # Collect volumes
@@ -127,22 +113,14 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             environment.update(parse_entrypoint(image_config["Entrypoint"]))
             # All command logging commands are added as environment variables for the
             # riptide entrypoint
-            if "logging" in service and "commands" in service["logging"]:
-                for cmdname, command in service["logging"]["commands"].items():
-                    environment[EENV_COMMAND_LOG_PREFIX + cmdname] = command
+            environment.update(collect_logging_commands(service))
 
             # Collect (and process!) additional_ports
             ports = service.collect_ports()
 
             # Change user?
             user_param = "0" if service["run_as_root"] else user
-            if not service["run_as_root"]:
-                environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-            # user and group are always created in the container, but only if the above ENV is set,
-            # the main cmd/entrypoint will be run as non-root
-            if not service["dont_create_user"]:
-                environment[EENV_USER] = user
-                environment[EENV_GROUP] = user_group
+            environment.update(collect_service_entrypoint_user_settings(service, user, user_group))
 
             # If src role is set, change workdir
             workdir = service.get_working_directory()
@@ -195,10 +173,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             with start_lock:
 
                 # Get port to bind main HTTP port to
-                if "port" in service:
-                    main_port = find_open_port_starting_at(DOCKER_ENGINE_HTTP_PORT_BND_START)
-                    labels[RIPTIDE_DOCKER_LABEL_HTTP_PORT] = str(main_port)
-                    ports[service["port"]] = main_port
+                add_main_port(service, ports, labels)
 
                 container = client.containers.run(
                     image=service["image"],
@@ -274,7 +249,7 @@ def stop(project_name: str, service_name: str, client: DockerClient, queue: Resu
     :param service_name:    Name of the service to start
     :param queue:           ResultQueue to update, or None
     """
-    name = get_container_name(project_name, service_name)
+    name = get_service_container_name(project_name, service_name)
     # 1. Check if already running
     if queue:
         queue.put(StartStopResultStep(current_step=1, steps=None, text='Checking...'))
@@ -301,7 +276,7 @@ def stop(project_name: str, service_name: str, client: DockerClient, queue: Resu
 
 def status(project_name: str, service: Service, client: DockerClient, system_config: Config):
     # Get Container
-    name = get_container_name(project_name, service["$name"])
+    name = get_service_container_name(project_name, service["$name"])
     container_is_running = False
     try:
         container = client.containers.get(name)
@@ -313,35 +288,41 @@ def status(project_name: str, service: Service, client: DockerClient, system_con
     return container_is_running
 
 
-def get_container_name(project_name: str, service_name: str):
-    return 'riptide__' + project_name + '__' + service_name
+def collect_logging_commands(service: Service) -> dict:
+    """Collect logging commands environment variables for this service"""
+    environment = {}
+    if "logging" in service and "commands" in service["logging"]:
+        for cmdname, command in service["logging"]["commands"].items():
+            environment[EENV_COMMAND_LOG_PREFIX + cmdname] = command
+    return environment
 
 
-def parse_entrypoint(entrypoint):
-    """
-    Parse the original entrypoint of an image and return a map of variables for the riptide entrypoint script.
-    RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT: Original entrypoint as string to be used with exec.
-                                         Empty if original entrypoint is not set.
-    RIPTIDE__DOCKER_DONT_RUN_CMD:        true or unset.
-                                         When the original entrypoint is a string, the command does not get run.
-                                         See table at https://docs.docker.com/engine/reference/builder/#shell-form-entrypoint-example
-    """
-    # Is the original entrypoint set?
-    if not entrypoint:
-        return {EENV_ORIGINAL_ENTRYPOINT: ""}
-    # Is the original entrypoint shell or exec format?
-    if isinstance(entrypoint, list):
-        # exec format
-        # Turn the list into a string, but quote all arguments
-        command = entrypoint.pop(0)
-        arguments = " ".join(['"%s"' % entry for entry in entrypoint])
-        return {
-            EENV_ORIGINAL_ENTRYPOINT: command + " " + arguments
-        }
-    else:
-        # shell format
-        return {
-            EENV_ORIGINAL_ENTRYPOINT: "/bin/sh -c " + entrypoint,
-            EENV_DONT_RUN_CMD: "true"
-        }
-    pass
+def collect_service_entrypoint_user_settings(service: Service, user, user_group) -> dict:
+    environment = {}
+    if not service["run_as_root"]:
+        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
+    # user and group are always created in the container, but only if the above ENV is set,
+    # the main cmd/entrypoint will be run as non-root
+    if not service["dont_create_user"]:
+        environment[EENV_USER] = str(user)
+        environment[EENV_GROUP] = str(user_group)
+    return environment
+
+
+def collect_labels(service: Service, project_name):
+    labels = {
+        RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
+        RIPTIDE_DOCKER_LABEL_PROJECT: project_name,
+        RIPTIDE_DOCKER_LABEL_SERVICE: service["$name"],
+        RIPTIDE_DOCKER_LABEL_MAIN: "0"
+    }
+    if "roles" in service and "main" in service["roles"]:
+        labels[RIPTIDE_DOCKER_LABEL_MAIN] = "1"
+    return labels
+
+
+def add_main_port(service: Service, ports, labels):
+    if "port" in service:
+        main_port = find_open_port_starting_at(DOCKER_ENGINE_HTTP_PORT_BND_START)
+        labels[RIPTIDE_DOCKER_LABEL_HTTP_PORT] = str(main_port)
+        ports[service["port"]] = main_port

@@ -11,11 +11,11 @@ from riptide.config.document.project import Project
 from riptide.engine.abstract import AbstractEngine
 from riptide_engine_docker import network, service, path_utils
 from riptide_engine_docker.cmd_detached import cmd_detached
-from riptide_engine_docker.service import get_container_name
+from riptide_engine_docker.names import get_service_container_name
 from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_HTTP_PORT
 from riptide.engine.project_start_ctx import riptide_start_project_ctx
 from riptide.engine.results import StartStopResultStep, MultiResultQueue, ResultQueue, ResultError
-from riptide_engine_docker.cmd_exec import service_exec, cmd
+from riptide_engine_docker.fg import exec_fg, cmd_fg, service_fg
 
 
 class DockerEngine(AbstractEngine):
@@ -86,7 +86,7 @@ class DockerEngine(AbstractEngine):
         if "port" not in project["app"]["services"][service_name]:
             return None
 
-        container_name = get_container_name(project["name"], service_name)
+        container_name = get_service_container_name(project["name"], service_name)
         try:
             container = self.client.containers.get(container_name)
             if container.status != "running":
@@ -102,10 +102,16 @@ class DockerEngine(AbstractEngine):
         # Start network
         network.start(self.client, project["name"])
 
-        cmd(self.client, project, command_name, arguments)
+        cmd_fg(self.client, project, command_name, arguments)
+
+    def service_fg(self, project: Project, service_name: str, arguments: List[str]) -> None:
+        # Start network
+        network.start(self.client, project["name"])
+
+        service_fg(self.client, project, service_name, arguments)
 
     def exec(self, project: Project, service_name: str, cols=None, lines=None, root=False) -> None:
-        service_exec(self.client, project, service_name, cols, lines, root)
+        exec_fg(self.client, project, service_name, cols, lines, root)
 
     def supports_exec(self):
         return True

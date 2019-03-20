@@ -2,6 +2,7 @@ from docker import DockerClient
 from docker.errors import NotFound
 
 from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
+from riptide_engine_docker.names import get_network_name
 
 
 def start(client: DockerClient, project_name: str):
@@ -12,5 +13,3 @@ def start(client: DockerClient, project_name: str):
         client.networks.create(net_name, driver="bridge", attachable=True, labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"})
 
 
-def get_network_name(project_name: str):
-    return 'riptide__' + project_name

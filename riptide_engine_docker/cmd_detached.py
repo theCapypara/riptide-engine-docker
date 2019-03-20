@@ -6,9 +6,10 @@ from docker.errors import NotFound, ContainerError
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
 from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
 from riptide_engine_docker.mounts import create_mounts
-from riptide_engine_docker.network import get_network_name
-from riptide_engine_docker.service import ENTRYPOINT_CONTAINER_PATH, parse_entrypoint, EENV_NO_STDOUT_REDIRECT, \
-    EENV_RUN_MAIN_CMD_AS_USER, EENV_USER, EENV_GROUP
+from riptide_engine_docker.names import get_network_name
+from riptide_engine_docker.constants import ENTRYPOINT_CONTAINER_PATH, EENV_USER, EENV_GROUP, EENV_RUN_MAIN_CMD_AS_USER, \
+    EENV_NO_STDOUT_REDIRECT
+from riptide_engine_docker.entrypoint import parse_entrypoint
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
 
