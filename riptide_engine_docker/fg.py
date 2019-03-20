@@ -124,6 +124,7 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
     environment = exec_object.collect_environment()
     environment[EENV_NO_STDOUT_REDIRECT] = "yes"
     # Add original entrypoint, see services.
+    image_config = client.api.inspect_image(exec_object["image"])["Config"]
     environment.update(parse_entrypoint(image_config["Entrypoint"]))
 
     if isinstance(exec_object, Service):
