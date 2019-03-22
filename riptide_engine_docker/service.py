@@ -1,5 +1,4 @@
 import json
-import os
 from time import sleep
 import threading
 
@@ -9,23 +8,13 @@ from json import JSONDecodeError
 
 from riptide.config.document.config import Config
 from riptide.config.document.service import Service
-from riptide.config.service.ports import find_open_port_starting_at
 
-from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
-from riptide_engine_docker.constants import ENTRYPOINT_CONTAINER_PATH, EENV_USER, EENV_GROUP, EENV_RUN_MAIN_CMD_AS_USER, \
-    EENV_COMMAND_LOG_PREFIX
-from riptide_engine_docker.entrypoint import parse_entrypoint
-from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, RIPTIDE_DOCKER_LABEL_SERVICE, \
-    RIPTIDE_DOCKER_LABEL_PROJECT, RIPTIDE_DOCKER_LABEL_MAIN, RIPTIDE_DOCKER_LABEL_HTTP_PORT
-from riptide_engine_docker.mounts import create_mounts
-from riptide_engine_docker.names import get_network_name, get_service_container_name
+from riptide_engine_docker.container_builder import get_network_name, get_service_container_name, \
+    ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
 NO_START_STEPS = 6
-
-# For services map HTTP main port to a host port starting here
-DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
 
 start_lock = threading.Lock()
 
@@ -45,10 +34,6 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
     :param service:         Service object defining the service
     :param queue:           ResultQueue to update, or None
     """
-    # TODO: FG start
-    # TODO: Function is way to long
-    user = getuid()
-    user_group = getgid()
 
     name = get_service_container_name(project_name, service["$name"])
     needs_to_be_started = False
@@ -92,38 +77,19 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 stop(project_name, service["$name"], client)
                 return
 
-        # Collect labels
-        labels = collect_labels(service, project_name)
-
+        # 2.5. Prepare container
         try:
-            # Collect volumes
-            volumes = service.collect_volumes()
-            # Add custom entrypoint as volume
-            entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), 'entrypoint.sh')
-            volumes[entrypoint_script] = {'bind': ENTRYPOINT_CONTAINER_PATH, 'mode': 'ro'}
-            mounts = create_mounts(volumes)
-
-            # Collect environment variables
-            environment = service.collect_environment()
-            # The original entrypoint of the image is replaced with
-            # this custom entrypoint script, which may call the original entrypoint
-            # if present
-            # This adds configuration for this to the script.
             image_config = client.api.inspect_image(service["image"])["Config"]
-            environment.update(parse_entrypoint(image_config["Entrypoint"]))
-            # All command logging commands are added as environment variables for the
-            # riptide entrypoint
-            environment.update(collect_logging_commands(service))
+            builder = ContainerBuilder(
+                service["image"],
+                service["command"] if "command" in service else image_config["Cmd"]
+            )
 
-            # Collect (and process!) additional_ports
-            ports = service.collect_ports()
-
-            # Change user?
-            user_param = "0" if service["run_as_root"] else user
-            environment.update(collect_service_entrypoint_user_settings(service, user, user_group))
-
+            builder.set_name(name)
+            builder.init_from_service(service, image_config)
+            builder.set_hostname(service['$name'])
             # If src role is set, change workdir
-            workdir = service.get_working_directory()
+            builder.set_workdir(service.get_working_directory())
         except Exception as ex:
             queue.end_with_error(ResultError("ERROR preparing container.", cause=ex))
             return
@@ -144,22 +110,24 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 except APIError:
                     pass
 
-                # TODO: Keyboard interrupt support
-                client.containers.run(
-                    image=service["image"],
-                    entrypoint=["/bin/sh", "-c", cmd],
-                    detach=False,
-                    remove=True,
-                    name=name + "__pre_start" + str(cmd_no),
-                    user=user_param,
-                    group_add=[user_group],
-                    volumes=volumes,
-                    environment=environment,
-                    ports=ports,
-                    network=get_network_name(project_name),
-                    labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'},
-                    working_dir=workdir
-                )
+                # Fork built container configuration and adjust it for pre start container
+                pre_start_config = builder.build_docker_api()
+                pre_start_config.update({
+                    'entrypoint': ["/bin/sh", "-c", cmd],
+                    'command': None,
+                    'name': name + "__pre_start" + str(cmd_no),
+                    'group_add': [getgid()],
+                    'network': get_network_name(project_name),
+                    # Don't use ports and labels of actual service container
+                    'ports': None,
+                    'labels': {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
+                })
+                # Whether or not to run pre start command as root
+                if not service['run_as_root']:
+                    pre_start_config['user']: getuid()
+
+                # RUN
+                client.containers.run(**pre_start_config)
             except (APIError, ContainerError) as err:
                 queue.end_with_error(ResultError("ERROR running pre start command '" + cmd + "'.", cause=err))
                 stop(project_name, service["$name"], client)
@@ -169,27 +137,11 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         queue.put(StartStopResultStep(current_step=4, steps=NO_START_STEPS, text="Starting Container..."))
 
         try:
-            # Lock here to prevent race conditions with port assignments and possibly other stuff
+            # Lock here to prevent race conditions with port assignment
             with start_lock:
-
-                # Get port to bind main HTTP port to
-                add_main_port(service, ports, labels)
-
-                container = client.containers.run(
-                    image=service["image"],
-                    entrypoint=[ENTRYPOINT_CONTAINER_PATH],
-                    command=image_config["Cmd"] if "command" not in service else service["command"],
-                    detach=True,
-                    name=name,
-                    user=str(0),
-                    group_add=[user_group],
-                    hostname=service["$name"],
-                    labels=labels,
-                    mounts=mounts,
-                    environment=environment,
-                    ports=ports,
-                    working_dir=workdir
-                )
+                builder.service_add_main_port(service)
+                # RUN
+                container = client.containers.run(**builder.build_docker_api(detach=True, remove=False))
                 # Add container to network
                 client.networks.get(get_network_name(project_name)).connect(container, aliases=[service["$name"]])
         except (APIError, ContainerError) as err:
@@ -216,12 +168,11 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             cmd_no = cmd_no + 1
             queue.put(StartStopResultStep(current_step=5, steps=NO_START_STEPS, text="Post Start: " + cmd))
             try:
-                # TODO: Keyboard interrupt support (shutdown then!)
                 container.exec_run(
                     cmd=["/bin/sh", "-c", cmd],
                     detach=False,
                     tty=True,
-                    user=user_param
+                    user=getuid() if not service['run_as_root'] else None
                 )
             except (APIError, ContainerError) as err:
                 queue.end_with_error(ResultError("ERROR running post start command '" + cmd + "'.", cause=err))
@@ -286,43 +237,3 @@ def status(project_name: str, service: Service, client: DockerClient, system_con
         pass
 
     return container_is_running
-
-
-def collect_logging_commands(service: Service) -> dict:
-    """Collect logging commands environment variables for this service"""
-    environment = {}
-    if "logging" in service and "commands" in service["logging"]:
-        for cmdname, command in service["logging"]["commands"].items():
-            environment[EENV_COMMAND_LOG_PREFIX + cmdname] = command
-    return environment
-
-
-def collect_service_entrypoint_user_settings(service: Service, user, user_group) -> dict:
-    environment = {}
-    if not service["run_as_root"]:
-        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-    # user and group are always created in the container, but only if the above ENV is set,
-    # the main cmd/entrypoint will be run as non-root
-    if not service["dont_create_user"]:
-        environment[EENV_USER] = str(user)
-        environment[EENV_GROUP] = str(user_group)
-    return environment
-
-
-def collect_labels(service: Service, project_name):
-    labels = {
-        RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
-        RIPTIDE_DOCKER_LABEL_PROJECT: project_name,
-        RIPTIDE_DOCKER_LABEL_SERVICE: service["$name"],
-        RIPTIDE_DOCKER_LABEL_MAIN: "0"
-    }
-    if "roles" in service and "main" in service["roles"]:
-        labels[RIPTIDE_DOCKER_LABEL_MAIN] = "1"
-    return labels
-
-
-def add_main_port(service: Service, ports, labels):
-    if "port" in service:
-        main_port = find_open_port_starting_at(DOCKER_ENGINE_HTTP_PORT_BND_START)
-        labels[RIPTIDE_DOCKER_LABEL_HTTP_PORT] = str(main_port)
-        ports[service["port"]] = main_port

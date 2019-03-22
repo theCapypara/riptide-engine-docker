@@ -1,8 +1,7 @@
 from docker import DockerClient
 from docker.errors import NotFound
 
-from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
-from riptide_engine_docker.names import get_network_name
+from riptide_engine_docker.container_builder import get_network_name, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
 
 
 def start(client: DockerClient, project_name: str):

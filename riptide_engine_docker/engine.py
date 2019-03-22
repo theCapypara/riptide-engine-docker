@@ -11,8 +11,7 @@ from riptide.config.document.project import Project
 from riptide.engine.abstract import AbstractEngine
 from riptide_engine_docker import network, service, path_utils
 from riptide_engine_docker.cmd_detached import cmd_detached
-from riptide_engine_docker.names import get_service_container_name
-from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_HTTP_PORT
+from riptide_engine_docker.container_builder import get_service_container_name, RIPTIDE_DOCKER_LABEL_HTTP_PORT
 from riptide.engine.project_start_ctx import riptide_start_project_ctx
 from riptide.engine.results import StartStopResultStep, MultiResultQueue, ResultQueue, ResultError
 from riptide_engine_docker.fg import exec_fg, cmd_fg, service_fg
@@ -108,7 +107,8 @@ class DockerEngine(AbstractEngine):
         # Start network
         network.start(self.client, project["name"])
 
-        service_fg(self.client, project, service_name, arguments)
+        with riptide_start_project_ctx(project):
+            service_fg(self.client, project, service_name, arguments)
 
     def exec(self, project: Project, service_name: str, cols=None, lines=None, root=False) -> None:
         exec_fg(self.client, project, service_name, cols, lines, root)

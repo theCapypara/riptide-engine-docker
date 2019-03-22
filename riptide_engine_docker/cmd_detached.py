@@ -3,21 +3,13 @@ import os
 from docker import DockerClient
 from docker.errors import NotFound, ContainerError
 
-from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
-from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
-from riptide_engine_docker.mounts import create_mounts
-from riptide_engine_docker.names import get_network_name
-from riptide_engine_docker.constants import ENTRYPOINT_CONTAINER_PATH, EENV_USER, EENV_GROUP, EENV_RUN_MAIN_CMD_AS_USER, \
-    EENV_NO_STDOUT_REDIRECT
-from riptide_engine_docker.entrypoint import parse_entrypoint
+from riptide_engine_docker.container_builder import ContainerBuilder, get_network_name, EENV_USER, EENV_GROUP, \
+    EENV_RUN_MAIN_CMD_AS_USER, EENV_NO_STDOUT_REDIRECT
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
 
 def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', run_as_root=False) -> (int, str):
     """See AbstractEngine.cmd_detached."""
-    user = getuid()
-    user_group = getgid()
-
     name = get_container_name(project["name"])
 
     # Pulling image
@@ -28,43 +20,27 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
         image_name_full = command['image'] if ":" in command['image'] else command['image'] + ":latest"
         client.api.pull(image_name_full)
 
-    # Collect volumes
-    volumes = command.collect_volumes()
-    # Add custom entrypoint as volume
-    entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), 'entrypoint.sh')
-    volumes[entrypoint_script] = {'bind': ENTRYPOINT_CONTAINER_PATH, 'mode': 'ro'}
-    mounts = create_mounts(volumes)
-
-    # Collect environment variables
-    environment = {}
-    # Setup entrypoint. See service start
+    image = client.images.get(command["image"])
     image_config = client.api.inspect_image(command["image"])["Config"]
-    environment.update(parse_entrypoint(image_config["Entrypoint"]))
-    environment[EENV_NO_STDOUT_REDIRECT] = "yes"
 
-    # Change user?
-    user_param = None if run_as_root else user
-    if user_param:
-        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-        environment[EENV_USER] = user
-        environment[EENV_GROUP] = user_group
+    builder = ContainerBuilder(
+        command["image"],
+        command["command"] if "command" in command else image_config["Cmd"]
+    )
 
-    # Starting the container
+    builder.set_name(get_container_name(project["name"]))
+    builder.set_network(get_network_name(project["name"]))
+
+    builder.set_env(EENV_NO_STDOUT_REDIRECT, "yes")
+
+    builder.init_from_command(command, image_config)
+    if not run_as_root:
+        builder.set_env(EENV_RUN_MAIN_CMD_AS_USER, "yes")
+        builder.set_env(EENV_USER, str(getuid()))
+        builder.set_env(EENV_GROUP, str(getgid()))
+
     try:
-        output = client.containers.run(
-            image=command["image"],
-            entrypoint=[ENTRYPOINT_CONTAINER_PATH],
-            command=command["command"],
-            detach=False,
-            name=name,
-            # user is always root, but EENV_USER may be used to run command with another user using the entrypoint
-            group_add=[user_group],
-            mounts=mounts,
-            environment=environment,
-            network=get_network_name(project["name"]),
-            remove=True,
-            labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
-        )
+        output = client.containers.run(**builder.build_docker_api())
         return 0, output
     except ContainerError as err:
         return err.exit_status, err.stderr

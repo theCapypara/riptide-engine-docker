@@ -4,8 +4,7 @@ from docker.errors import NotFound
 from warnings import warn
 
 from riptide.tests.integration.engine.tester_for_engine import AbstractEngineTester
-from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
-from riptide_engine_docker.names import get_service_container_name
+from riptide_engine_docker.container_builder import get_service_container_name, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
 
 
 class DockerEngineTester(AbstractEngineTester):

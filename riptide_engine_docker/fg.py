@@ -1,4 +1,3 @@
-import os
 import riptide.lib.cross_platform.cppty as pty
 from typing import List, Union
 
@@ -10,15 +9,9 @@ from riptide.config.document.service import Service
 from riptide.config.files import CONTAINER_SRC_PATH, get_current_relative_src_path
 from riptide.engine.abstract import ExecError
 
-from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
-from riptide_engine_docker.labels import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
-from riptide_engine_docker.mounts import create_cli_mount_strings
-from riptide_engine_docker.names import get_cmd_container_name, get_network_name, get_service_container_name
-from riptide_engine_docker.service import collect_logging_commands, collect_service_entrypoint_user_settings, \
-    collect_labels, add_main_port
-from riptide_engine_docker.constants import ENTRYPOINT_CONTAINER_PATH, EENV_USER, EENV_GROUP, EENV_RUN_MAIN_CMD_AS_USER, \
+from riptide_engine_docker.container_builder import get_cmd_container_name, get_network_name, \
+    get_service_container_name, ContainerBuilder, EENV_USER, EENV_GROUP, EENV_RUN_MAIN_CMD_AS_USER, \
     EENV_NO_STDOUT_REDIRECT
-from riptide_engine_docker.entrypoint import parse_entrypoint
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
 
@@ -81,11 +74,8 @@ def cmd_fg(client, project: Project, command_name: str, arguments: List[str]) ->
 
 
 def fg(client, project: Project, container_name: str, exec_object: Union[Command, Service], arguments: List[str]) -> None:
-    # TODO: Get rid of code duplication
     # TODO: Piping | <
     # TODO: Not only /src into container but everything
-    user = getuid()
-    user_group = getgid()
 
     # Check if image exists
     try:
@@ -95,6 +85,8 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
         print("Riptide: Pulling image... Your command will be run after that.")
         try:
             client.api.pull(exec_object['image'] if ":" in exec_object['image'] else exec_object['image'] + ":latest")
+            image = client.images.get(exec_object["image"])
+            image_config = client.api.inspect_image(exec_object["image"])["Config"]
         except ImageNotFound as ex:
             print("Riptide: Could not pull. The image was not found. Your command will not run :(")
             return
@@ -103,66 +95,26 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
             print('    ' + str(ex))
             return
 
-    # TODO: The Docker Python API doesn't seem to support interactive run - use pty.spawn for now
-    # Containers are run as root, just like the services the entrypoint script manages the rest
-    shell = [
-        "docker", "run",
-        "--label", "%s=1" % RIPTIDE_DOCKER_LABEL_IS_RIPTIDE,
-        "--rm",
-        "-it",
-        "-w", CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project),
-        "--network", get_network_name(project["name"]),
-        "--name", container_name
-    ]
+    builder = ContainerBuilder(
+        exec_object["image"],
+        exec_object["command"] if "command" in exec_object else image_config["Cmd"]
+    )
 
-    volumes = exec_object.collect_volumes()
-    # Add custom entrypoint as volume
-    entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), 'entrypoint.sh')
-    volumes[entrypoint_script] = {'bind': ENTRYPOINT_CONTAINER_PATH, 'mode': 'ro'}
-    mounts = create_cli_mount_strings(volumes)
+    builder.set_workdir(CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project))
+    builder.set_name(container_name)
+    builder.set_network(get_network_name(project["name"]))
 
-    environment = exec_object.collect_environment()
-    environment[EENV_NO_STDOUT_REDIRECT] = "yes"
-    # Add original entrypoint, see services.
-    image_config = client.api.inspect_image(exec_object["image"])["Config"]
-    environment.update(parse_entrypoint(image_config["Entrypoint"]))
+    builder.set_env(EENV_NO_STDOUT_REDIRECT, "yes")
+    builder.set_args(arguments)
 
     if isinstance(exec_object, Service):
-        # TODO: Noch besser zusammenführen und aufräumen
-        # ADDITIONAL SERVICE SETTINGS:
-        # Collect labels
-        labels = collect_labels(exec_object, project["name"])
-        # Add ports
-        ports = exec_object.collect_ports()
-        add_main_port(exec_object, ports, labels)
-        # Logging commands
-        environment.update(collect_logging_commands(exec_object))
-        # User settings for the entrypoint
-        environment.update(collect_service_entrypoint_user_settings(exec_object, user, user_group))
-        # Add shell flags
-        for name, val in labels.items():
-            shell += ['--label', name + '=' + val]
-        for cnt_port, host_port in ports.items():
-            shell += ['-p', str(host_port) + ':' + str(cnt_port)]
-
+        builder.init_from_service(exec_object, image_config)
+        builder.service_add_main_port(exec_object)
     else:
-        # ADDITIONAL COMMAND SETTINGS:
-        # User settings for the entrypoint
-        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-        environment[EENV_USER] = str(user)
-        environment[EENV_GROUP] = str(user_group)
+        builder.init_from_command(exec_object, image_config)
+        builder.set_env(EENV_RUN_MAIN_CMD_AS_USER, "yes")
+        builder.set_env(EENV_USER, str(getuid()))
+        builder.set_env(EENV_GROUP, str(getgid()))
 
-    shell += mounts
-
-    for key, value in environment.items():
-        shell += ['-e', key + '=' + value]
-
-    command = exec_object["command"] if "command" in exec_object else " ".join(image_config["Cmd"])
-
-    shell += [
-        "--entrypoint", ENTRYPOINT_CONTAINER_PATH,
-        exec_object["image"],
-        command + " " + " ".join('"{0}"'.format(w) for w in arguments)
-    ]
-
-    pty.spawn(shell, win_repeat_argv0=True)
+    # TODO: The Docker Python API doesn't seem to support interactive run - use pty.spawn for now
+    pty.spawn(builder.build_docker_cli(), win_repeat_argv0=True)
