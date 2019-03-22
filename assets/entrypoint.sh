@@ -20,7 +20,11 @@
 #   and add $RIPTIDE__DOCKER_USER to this group.
 #
 # RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER:
-#   If set, the original entrypoint and command are run via the $RIPTIDE__DOCKER_USER user using su.
+#   If set, the original entrypoint and command are run via the RIPTIDE__DOCKER_USER_RUN user using su.
+#
+# RIPTIDE__DOCKER_USER_RUN:
+#   (optional, defaults to RIPTIDE__DOCKER_USER)
+#   User id to use for run. If this is different from RIPTIDE__DOCKER_USER, then the user with this id MUST exist.
 #
 # RIPTIDE__DOCKER_DONT_RUN_CMD:
 #   If set, the command is not run, only the original entrypoint/nothing.
@@ -51,7 +55,7 @@ env | sed -n "s/^RIPTIDE__DOCKER_CMD_LOGGING_\(\S*\)=.*/\1/p" | while read -r na
     sh -c "sleep 5; ${cmd}" > /cmd_logs/${name} &
 done
 
-# Change the user if requested
+# Create user and group
 SU_PREFIX=""
 SU_POSTFIX=""
 if [ ! -z "$RIPTIDE__DOCKER_USER" ]; then
@@ -83,12 +87,18 @@ if [ ! -z "$RIPTIDE__DOCKER_USER" ]; then
         mkdir -p /home
         ln -s $HOME_DIR /home/riptide
     fi
-    # PREPARE SU COMMAND AND ENV
-    if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then
-        SU_PREFIX="su $USERNAME -m -c '"
-        SU_POSTFIX="'"
-        export HOME=/home/riptide
+    # Set the RIPTIDE__DOCKER_USER_RUN if unset
+    if [ -z "$RIPTIDE__DOCKER_USER_RUN" ]; then
+        RIPTIDE__DOCKER_USER_RUN=$RIPTIDE__DOCKER_USER
     fi
+fi
+
+# PREPARE SU COMMAND AND ENV
+if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then
+    USERNAME=$(getent passwd "$RIPTIDE__DOCKER_USER_RUN" | cut -d: -f1)
+    SU_PREFIX="su $USERNAME -m -c '"
+    SU_POSTFIX="'"
+    export HOME=/home/riptide
 fi
 
 # host.riptide.internal is supposed to be routable to the host.

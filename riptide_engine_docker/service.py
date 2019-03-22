@@ -122,8 +122,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     'ports': None,
                     'labels': {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
                 })
-                # Whether or not to run pre start command as root
-                if not service['run_as_root']:
+                # Whether or not to run pre start command as current user
+                if service['run_as_current_user']:
                     pre_start_config['user']: getuid()
 
                 # RUN
@@ -154,7 +154,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         try:
             container = client.containers.get(name)
             if container.status == "exited":
-                extra = " Try 'run_as_root': true" if not service["run_as_root"] else ""
+                extra = " Try 'run_as_current_user': false" if service["run_as_current_user"] else ""
                 queue.end_with_error(ResultError("ERROR: Container crashed." + extra, details=container.logs().decode("utf-8")))
                 container.remove()
                 return
@@ -172,7 +172,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     cmd=["/bin/sh", "-c", cmd],
                     detach=False,
                     tty=True,
-                    user=getuid() if not service['run_as_root'] else None
+                    user=getuid() if service['run_as_current_user'] else None
                 )
             except (APIError, ContainerError) as err:
                 queue.end_with_error(ResultError("ERROR running post start command '" + cmd + "'.", cause=err))

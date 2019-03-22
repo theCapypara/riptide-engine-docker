@@ -21,6 +21,7 @@ RIPTIDE_DOCKER_LABEL_HTTP_PORT = "riptide_port"
 ENTRYPOINT_CONTAINER_PATH = '/entrypoint_riptide.sh'
 EENV_DONT_RUN_CMD = "RIPTIDE__DOCKER_DONT_RUN_CMD"
 EENV_USER = "RIPTIDE__DOCKER_USER"
+EENV_USER_RUN = "RIPTIDE__DOCKER_USER_RUN"
 EENV_GROUP = "RIPTIDE__DOCKER_GROUP"
 EENV_RUN_MAIN_CMD_AS_USER = "RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER"
 EENV_ORIGINAL_ENTRYPOINT = "RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT"
@@ -143,7 +144,7 @@ class ContainerBuilder:
         # riptide entrypoint
         environment_updates = service_collect_logging_commands(service)
         # User settings for the entrypoint
-        environment_updates.update(service_collect_entrypoint_user_settings(service, getuid(), getgid()))
+        environment_updates.update(service_collect_entrypoint_user_settings(service, getuid(), getgid(), image_config))
         # Add to builder
         for key, value in environment_updates.items():
             self.set_env(key, value)
@@ -313,15 +314,22 @@ def service_collect_logging_commands(service: Service) -> dict:
     return environment
 
 
-def service_collect_entrypoint_user_settings(service: Service, user, user_group) -> dict:
+def service_collect_entrypoint_user_settings(service: Service, user, user_group, image_config) -> dict:
     environment = {}
-    if not service["run_as_root"]:
-        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-    # user and group are always created in the container, but only if the above ENV is set,
-    # the main cmd/entrypoint will be run as non-root
+
     if not service["dont_create_user"]:
         environment[EENV_USER] = str(user)
         environment[EENV_GROUP] = str(user_group)
+
+    if service["run_as_current_user"]:
+        # Run with the current system user
+        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
+    elif "User" in image_config:
+        # If run_as_current_user is false and an user is configured in the image config, tell the entrypoint to run
+        # with this user
+        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
+        environment[EENV_USER_RUN] = image_config["User"]
+
     return environment
 
 
