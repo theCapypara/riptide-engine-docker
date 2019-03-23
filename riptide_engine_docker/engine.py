@@ -1,6 +1,8 @@
 import asyncio
 
 import docker
+import json
+from json import JSONDecodeError
 from typing import Tuple, Dict, Union, List
 
 from docker.errors import APIError
@@ -129,8 +131,42 @@ class DockerEngine(AbstractEngine):
 
         return cmd_detached(self.client, project, command, run_as_root)
 
+    def pull_images(self, project: 'Project', line_reset='\n', update_func=lambda msg: None) -> None:
+        if "services" in project["app"]:
+            for name, service in project["app"]["services"].items():
+                update_func("[service/%s] Pulling '%s':\n" % (name, service["image"]))
+                self.__pull_image(service['image'] if ":" in service['image'] else service['image'] + ":latest",
+                                  line_reset, update_func)
+
+        if "commands" in project["app"]:
+            for name, command in project["app"]["commands"].items():
+                update_func("[command/%s] Pulling '%s':\n" % (name, command["image"]))
+                self.__pull_image(command['image'] if ":" in command['image'] else command['image'] + ":latest",
+                                  line_reset, update_func)
+
+        update_func("Done!\n\n")
+
     def path_rm(self, path, project: 'Project'):
         return path_utils.rm(self, path, project)
 
     def path_copy(self, fromm, to, project: 'Project'):
         return path_utils.copy(self, fromm, to, project)
+
+    def __pull_image(self, image_name, line_reset, update_func):
+        try:
+            for line in self.client.api.pull(image_name, stream=True):
+                try:
+                    status = json.loads(line)
+                    if "progress" in status:
+                        update = status["status"] + " : " + status[ "progress"]
+                    else:
+                        update = status["status"]
+                except JSONDecodeError:
+                    update = line
+                update_func("%s    %s" % (line_reset, update))
+            update_func("%s    Done!\n" % line_reset)
+        except APIError as ex:
+            if "404 Client Error: Not Found " in str(ex):
+                update_func("%s    Warning: Image not found in repository.\n" % line_reset)
+            else:
+                raise
