@@ -10,7 +10,7 @@ from riptide.config.document.config import Config
 from riptide.config.document.service import Service
 
 from riptide_engine_docker.container_builder import get_network_name, get_service_container_name, \
-    ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE
+    ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, EENV_NO_STDOUT_REDIRECT
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
@@ -113,18 +113,14 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 # Fork built container configuration and adjust it for pre start container
                 pre_start_config = builder.build_docker_api()
                 pre_start_config.update({
-                    'entrypoint': ["/bin/sh", "-c", cmd],
-                    'command': None,
+                    'command': ['/bin/sh -c "' + cmd + '"'],
                     'name': name + "__pre_start" + str(cmd_no),
-                    'group_add': [getgid()],
                     'network': get_network_name(project_name),
                     # Don't use ports and labels of actual service container
                     'ports': None,
                     'labels': {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
                 })
-                # Whether or not to run pre start command as current user
-                if service['run_as_current_user']:
-                    pre_start_config['user'] = getuid()
+                pre_start_config['environment'][EENV_NO_STDOUT_REDIRECT] = '1'
 
                 # RUN
                 client.containers.run(**pre_start_config)
