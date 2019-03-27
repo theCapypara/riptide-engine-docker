@@ -11,7 +11,7 @@ from riptide.config.document.config import Config
 from riptide.config.document.service import Service
 
 from riptide_engine_docker.container_builder import get_network_name, get_service_container_name, \
-    ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, EENV_NO_STDOUT_REDIRECT
+    ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, EENV_NO_STDOUT_REDIRECT, EENV_ORIGINAL_ENTRYPOINT
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
@@ -114,7 +114,6 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 # Fork built container configuration and adjust it for pre start container
                 pre_start_config = copy.deepcopy(builder.build_docker_api())
                 pre_start_config.update({
-                    'command': ['/bin/sh -c "' + cmd + '"'],
                     'name': name + "__pre_start" + str(cmd_no),
                     'network': get_network_name(project_name),
                     # Don't use ports and labels of actual service container
@@ -122,6 +121,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     'labels': {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
                 })
                 pre_start_config['environment'][EENV_NO_STDOUT_REDIRECT] = '1'
+                pre_start_config['environment'][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
 
                 # RUN
                 client.containers.run(**pre_start_config)
