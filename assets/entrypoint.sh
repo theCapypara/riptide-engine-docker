@@ -72,6 +72,8 @@ if [ ! -z "$RIPTIDE__DOCKER_USER" ]; then
     # ADD USER
     if ! getent passwd $RIPTIDE__DOCKER_USER > /dev/null; then
         USERNAME="riptide"
+        mkdir /home/riptide -p
+        chown $RIPTIDE__DOCKER_USER:$RIPTIDE__DOCKER_GROUP /home/riptide -R
         # useradd might be called adduser (alpine)
         if command -v useradd > /dev/null; then
             useradd -ms /bin/sh --home-dir /home/riptide -u $RIPTIDE__DOCKER_USER -g $GROUP_NAME riptide 2> /dev/null
@@ -86,6 +88,7 @@ if [ ! -z "$RIPTIDE__DOCKER_USER" ]; then
         # Symlink the other user directory to /home/riptide
         mkdir -p /home
         ln -s $HOME_DIR /home/riptide
+        chown $RIPTIDE__DOCKER_USER:$RIPTIDE__DOCKER_GROUP /home/riptide -R
     fi
     # Set the RIPTIDE__DOCKER_USER_RUN if unset
     if [ -z "$RIPTIDE__DOCKER_USER_RUN" ]; then
