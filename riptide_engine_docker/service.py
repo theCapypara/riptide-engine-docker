@@ -124,7 +124,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 })
                 # Whether or not to run pre start command as current user
                 if service['run_as_current_user']:
-                    pre_start_config['user']: getuid()
+                    pre_start_config['user'] = getuid()
 
                 # RUN
                 client.containers.run(**pre_start_config)
