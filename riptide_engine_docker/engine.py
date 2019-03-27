@@ -140,9 +140,10 @@ class DockerEngine(AbstractEngine):
 
         if "commands" in project["app"]:
             for name, command in project["app"]["commands"].items():
-                update_func("[command/%s] Pulling '%s':\n" % (name, command["image"]))
-                self.__pull_image(command['image'] if ":" in command['image'] else command['image'] + ":latest",
-                                  line_reset, update_func)
+                if "image" in command:
+                    update_func("[command/%s] Pulling '%s':\n" % (name, command["image"]))
+                    self.__pull_image(command['image'] if ":" in command['image'] else command['image'] + ":latest",
+                                      line_reset, update_func)
 
         update_func("Done!\n\n")
 

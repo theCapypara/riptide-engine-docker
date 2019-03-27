@@ -324,7 +324,7 @@ def service_collect_entrypoint_user_settings(service: Service, user, user_group,
     if service["run_as_current_user"]:
         # Run with the current system user
         environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-    elif "User" in image_config:
+    elif "User" in image_config and image_config["User"] != "":
         # If run_as_current_user is false and an user is configured in the image config, tell the entrypoint to run
         # with this user
         environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
