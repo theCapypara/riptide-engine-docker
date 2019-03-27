@@ -1,3 +1,4 @@
+import copy
 import json
 from time import sleep
 import threading
@@ -111,7 +112,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     pass
 
                 # Fork built container configuration and adjust it for pre start container
-                pre_start_config = builder.build_docker_api()
+                pre_start_config = copy.deepcopy(builder.build_docker_api())
                 pre_start_config.update({
                     'command': ['/bin/sh -c "' + cmd + '"'],
                     'name': name + "__pre_start" + str(cmd_no),
