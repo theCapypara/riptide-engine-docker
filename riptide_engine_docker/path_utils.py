@@ -25,17 +25,16 @@ def rm(engine, path, project: 'Project'):
     command = Command({
         'image': IMAGE,
         'command': 'rm -rf /cmd_target/%s' % name_of_file,
-        'additional_volumes': [{
+        'additional_volumes': {'target': {
             'host': file_dir,
             'container': '/cmd_target',
             'mode': 'rw'
-        }]
+        }}
     })
     command.validate()
     (exit_code, output) = engine.cmd_detached(project, command, run_as_root=True)
     if exit_code != 0:
         raise ExecError("Error removing the path (%s) %s: %s" % (str(exit_code), path, output))
-
 
 
 def copy(engine, fromm, to, project: 'Project'):
@@ -52,15 +51,15 @@ def copy(engine, fromm, to, project: 'Project'):
     command = Command({
         'image': IMAGE,
         'command': 'cp -a /copy_from/. /copy_to/',
-        'additional_volumes': [{
+        'additional_volumes': {'fromm': {
             'host': fromm,
             'container': '/copy_from',
             'mode': 'ro'
-        }, {
+        }, 'to': {
             'host': to,
             'container': '/copy_to',
             'mode': 'rw'
-        }]
+        }}
     })
     command.validate()
     (exit_code, output) = engine.cmd_detached(project, command, run_as_root=True)
