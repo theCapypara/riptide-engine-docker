@@ -50,7 +50,7 @@ class DockerEngine(AbstractEngine):
                     )
                 else:
                     # Services not found :(
-                    queue.end_with_error(queue.end_with_error(ResultError("Service not found.")))
+                    queue.end_with_error(ResultError("Service not found."))
 
             return MultiResultQueue(queues)
 
