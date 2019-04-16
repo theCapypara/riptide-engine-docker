@@ -11,6 +11,7 @@ from riptide.config.service.ports import find_open_port_starting_at
 from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
 
+ENTRYPOINT_SH = 'entrypoint.sh'
 
 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE = 'riptide'
 RIPTIDE_DOCKER_LABEL_SERVICE = "riptide_service"
@@ -38,7 +39,7 @@ class ContainerBuilder:
     Builds Riptide Docker containers for use with the Python API and
     the Docker CLI
     """
-    def __init__(self, image: str, command: Union[str, list]) -> None:
+    def __init__(self, image: str, command: str) -> None:
         """Create a new container builder. Specify image and command to run."""
         self.env = {}
         self.labels = {}
@@ -110,7 +111,7 @@ class ContainerBuilder:
         # If the entrypoint is enabled, then run the entrypoint
         # as root. It will handle the rest.
         self.run_as_root = True
-        entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), 'entrypoint.sh')
+        entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), ENTRYPOINT_SH)
         self.set_mount(entrypoint_script, ENTRYPOINT_CONTAINER_PATH, 'ro')
 
         # Collect entrypoint settings
@@ -178,6 +179,7 @@ class ContainerBuilder:
     def build_docker_api(self, detach=False, remove=True) -> dict:
         """
         Build the docker container in the form of Docker API containers.run arguments.
+
         :param detach: Whether or not to set the detach option.
         :param remove: Whether or not to set the remove option.
         """
@@ -187,12 +189,8 @@ class ContainerBuilder:
             'image': self.image
         }
 
-        str_command = self.command
-        if isinstance(str_command, list):
-            str_command = " ".join(str_command)
-
         if len(self.args) > 0:
-            args['command'] = str_command + " " + " ".join('"{0}"'.format(w) for w in self.args)
+            args['command'] = [self.command] + self.args
         else:
             args['command'] = self.command
 
@@ -258,7 +256,7 @@ class ContainerBuilder:
 
         shell += [
             self.image,
-            command + " " + " ".join('"{0}"'.format(w) for w in self.args)
+            (command + " " + " ".join('"{0}"'.format(w) for w in self.args)).rstrip()
         ]
         return shell
 
