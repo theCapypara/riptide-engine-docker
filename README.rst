@@ -23,15 +23,11 @@
 .. _docs:           https://github.com/Parakoopa/riptide-docs
 .. _repo:           https://github.com/Parakoopa/riptide-repo
 
-|build| |integration| |docs|
+|build| |docs|
 
 .. |build| image:: http://jenkins.riptide.parakoopa.de:8080/buildStatus/icon?job=riptide-engine-docker%2Fmaster
     :target: http://jenkins.riptide.parakoopa.de:8080/blue/organizations/jenkins/riptide-engine-docker/activity
     :alt: Build Status (Unit & Deployment)
-
-.. |integration| image:: http://jenkins.riptide.parakoopa.de:8080/buildStatus/icon?subject=integration&job=riptide-lib%2Fmaster
-    :target: http://jenkins.riptide.parakoopa.de:8080/blue/organizations/jenkins/riptide-lib/activity
-    :alt: Build Status (Integration)
 
 .. |docs| image:: https://readthedocs.org/projects/riptide-docs/badge/?version=latest
     :target: https://riptide-docs.readthedocs.io/en/latest/?badge=latest
