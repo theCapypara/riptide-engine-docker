@@ -18,18 +18,20 @@ pipeline {
 
         stage("Tests") {
             steps {
-                sh '''#!/bin/bash
-                    docker run \
-                        -v /var/run/docker.sock:/var/run/docker.sock \
-                        -e USER=$(id -u) \
-                        -e DOCKER_GROUP=$(cut -d: -f3 < <(getent group docker)) \
-                        -v "/tmp:/tmp" \
-                        -v "$(pwd):$(pwd)" \
-                        --network host \
-                        --workdir $(pwd) \
-                        riptide_docker_tox \
-                        tox
-                '''
+                lock('riptide-integration-tests') {
+                    sh '''#!/bin/bash
+                        docker run \
+                            -v /var/run/docker.sock:/var/run/docker.sock \
+                            -e USER=$(id -u) \
+                            -e DOCKER_GROUP=$(cut -d: -f3 < <(getent group docker)) \
+                            -v "/tmp:/tmp" \
+                            -v "$(pwd):$(pwd)" \
+                            --network host \
+                            --workdir $(pwd) \
+                            riptide_docker_tox \
+                            tox
+                    '''
+                }
             }
         }
 
@@ -60,7 +62,7 @@ pipeline {
                 TWINE    = credentials('parakoopa-twine-username-password')
             }
             steps {
-                sh 'twine -u "$TWINE_USR" -p "$TWINE_PSW" upload dist/*'
+                sh 'twine upload -u "$TWINE_USR" -p "$TWINE_PSW" dist/*'
             }
         }
 
