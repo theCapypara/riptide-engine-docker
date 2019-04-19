@@ -42,7 +42,7 @@ class DockerEngineTester(AbstractEngineTester):
                     self.__wait_until_not_in_created_state(engine_obj, project, service)
                 if container.status != 'running':
                     raise AssertionError('Container for service %s must be running. Was: %s'
-                                         % service['$name'], container.status)
+                                         % (service['$name'], container.status))
             except NotFound as err:
                 raise AssertionError('Container for service %s must be running. Was: Not Found' % service['$name']) from err
 
