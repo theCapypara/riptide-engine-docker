@@ -51,7 +51,7 @@ This repository implements the Riptide engine backend by using the Docker contai
 It uses both the Docker API and the Docker CLI to communicate with Docker. The Docker Host must be installed and
 running on the same machine as Riptide. The Docker CLI must also be installed.
 
-It can be installed via pip by installing ``riptide_engine_docker``.
+It can be installed via pip by installing ``riptide-engine-docker``.
 
 Tests
 -----
