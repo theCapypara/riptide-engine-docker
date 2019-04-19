@@ -1,3 +1,5 @@
+from time import sleep
+
 from typing import Union
 
 from docker.errors import NotFound
@@ -36,10 +38,13 @@ class DockerEngineTester(AbstractEngineTester):
         for service in services:
             try:
                 container = self._get_container(engine_obj, project, service)
+                if container.status == 'created':
+                    self.__wait_until_not_in_created_state(engine_obj, project, service)
                 if container.status != 'running':
-                    raise AssertionError('Container for service %s must be running' % service['$name'])
+                    raise AssertionError('Container for service %s must be running. Was: %s'
+                                         % service['$name'], container.status)
             except NotFound as err:
-                raise AssertionError('Container for service %s must be running' % service['$name']) from err
+                raise AssertionError('Container for service %s must be running. Was: Not Found' % service['$name']) from err
 
     def assert_not_running(self, engine_obj, project, services):
         for service in services:
@@ -108,3 +113,10 @@ class DockerEngineTester(AbstractEngineTester):
 
         exit_code, env_return = container.exec_run(cmd='touch %s' % path, stderr=False, user=str(as_user))
         assert exit_code == 0
+
+    def __wait_until_not_in_created_state(self, engine_obj, project, service):
+        """Sometimes it takes a while for Docker to start a container. Wait until Docker is done."""
+        sleep(1)
+        container = self._get_container(engine_obj, project, service)
+        if container.status == 'created':
+            self.__wait_until_not_in_created_state(engine_obj, project, service)
