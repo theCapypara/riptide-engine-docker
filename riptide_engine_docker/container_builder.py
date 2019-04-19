@@ -1,4 +1,6 @@
 """Container builder module."""
+from collections import OrderedDict
+
 import os
 import platform
 from typing import List, Union
@@ -41,10 +43,10 @@ class ContainerBuilder:
     """
     def __init__(self, image: str, command: str) -> None:
         """Create a new container builder. Specify image and command to run."""
-        self.env = {}
-        self.labels = {}
-        self.mounts = {}
-        self.ports = {}
+        self.env = OrderedDict()
+        self.labels = OrderedDict()
+        self.mounts = OrderedDict()
+        self.ports = OrderedDict()
         self.network = None
         self.name = None
         self.entrypoint = None
