@@ -1,3 +1,0 @@
--e git+ssh://git@github.com/Parakoopa/configcrunch.git#egg=configcrunch
--e git+ssh://git@github.com/Parakoopa/riptide-lib.git#egg=riptide_lib
-docker==3.5.1
