@@ -52,7 +52,9 @@ fi
 env | sed -n "s/^RIPTIDE__DOCKER_CMD_LOGGING_\(\S*\)=.*/\1/p" | while read -r name ; do
     eval "cmd=\${RIPTIDE__DOCKER_CMD_LOGGING_${name}}"
     # XXX: Currently waiting 5sec for service to start, make configurable?
-    nohup sh -c "sleep 5; ${cmd}" > /cmd_logs/${name} &
+    # The infinite sleep is required, because in some instances, the main command
+    #   will exit otherwise if a logging command exits.
+    nohup sh -c "sleep 5; ${cmd}; sleep infinity" > /cmd_logs/${name} &
 done
 
 # Create user and group
