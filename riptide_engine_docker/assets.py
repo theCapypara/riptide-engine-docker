@@ -1,6 +1,5 @@
-import os
+import pkg_resources
 
 
 def riptide_engine_docker_assets_dir():
-    this_folder = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(this_folder, '..', 'assets')
+    return pkg_resources.resource_filename(__name__, 'assets')

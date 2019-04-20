@@ -1,3 +1,4 @@
+from glob import glob
 from setuptools import setup, find_packages
 
 # README read-in
@@ -9,9 +10,9 @@ with open(path.join(this_directory, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='riptide-engine_docker',
-    version='0.1.1',
+    version='0.1.2',
     packages=find_packages(),
-    include_package_data=True,
+    package_data={'riptide_engine_docker': ['assets/*']},
     description='Tool to manage development environments for web applications using containers - Docker Implementation',
     long_description=long_description,
     long_description_content_type='text/x-rst',
