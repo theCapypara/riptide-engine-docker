@@ -169,7 +169,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     cmd=["/bin/sh", "-c", cmd],
                     detach=False,
                     tty=True,
-                    user=getuid() if service['run_as_current_user'] else None
+                    user=str(getuid()) if service['run_as_current_user'] else None
                 )
             except (APIError, ContainerError) as err:
                 queue.end_with_error(ResultError("ERROR running post start command '" + cmd + "'.", cause=err))

@@ -26,7 +26,7 @@ class ContainerBuilderTest(unittest.TestCase):
             'detach': False,
             'remove': True,
             'image': IMAGE_NAME,
-            'command': COMMAND,
+            'command': [COMMAND],
             'environment': {},
             'mounts': [],
             'ports': {},
@@ -45,6 +45,54 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', 'riptide=1', IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+    def test_command_list(self):
+        test_obj = ContainerBuilder(image=IMAGE_NAME, command=[COMMAND, 'elem2'])
+        # Test API build
+        self.expected_api_base.update({
+            'command': [COMMAND, 'elem2']
+        })
+        actual_api = test_obj.build_docker_api()
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            '--label', 'riptide=1', IMAGE_NAME, COMMAND + " elem2"
+        ]
+        actual_cli = test_obj.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+    def test_command_none(self):
+        test_obj = ContainerBuilder(image=IMAGE_NAME, command=None)
+        # Test API build
+        self.expected_api_base.update({
+            'command': None
+        })
+        actual_api = test_obj.build_docker_api()
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            '--label', 'riptide=1', IMAGE_NAME, ''
+        ]
+        actual_cli = test_obj.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+    def test_command_list_spaces(self):
+        test_obj = ContainerBuilder(image=IMAGE_NAME, command=[COMMAND, 'elem2 elem3'])
+        # Test API build
+        self.expected_api_base.update({
+            'command': [COMMAND, '"elem2 elem3"']
+        })
+        actual_api = test_obj.build_docker_api()
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            '--label', 'riptide=1', IMAGE_NAME, COMMAND + ' "elem2 elem3"'
+        ]
+        actual_cli = test_obj.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
 
     def test_build_docker_api_detach_true(self):

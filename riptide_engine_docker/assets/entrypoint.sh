@@ -116,6 +116,10 @@ else
     echo "172.17.0.1  host.riptide.internal "  >> /etc/hosts
 fi
 
+# ENV_PATH = PATH to make it consistent with the default Docker API
+echo "
+ENV_PATH PATH=$PATH
+" > /etc/login.defs
 
 # Run original entrypoint and/or cmd
 if [ -z "RIPTIDE__DOCKER_DONT_RUN_CMD" ]; then

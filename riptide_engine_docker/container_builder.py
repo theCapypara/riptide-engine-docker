@@ -41,7 +41,7 @@ class ContainerBuilder:
     Builds Riptide Docker containers for use with the Python API and
     the Docker CLI
     """
-    def __init__(self, image: str, command: str) -> None:
+    def __init__(self, image: str, command: Union[List, str, None]) -> None:
         """Create a new container builder. Specify image and command to run."""
         self.env = OrderedDict()
         self.labels = OrderedDict()
@@ -191,10 +191,23 @@ class ContainerBuilder:
             'image': self.image
         }
 
-        if len(self.args) > 0:
-            args['command'] = [self.command] + self.args
+        if self.command is None:
+            args['command'] = None
         else:
-            args['command'] = self.command
+            list_command = self.command
+            if isinstance(self.command, str):
+                list_command = [self.command]
+
+            if len(self.args) > 0:
+                list_command += self.args
+
+            # Strange Docker API Bug (?) requires args with spaces to be quoted...
+            args['command'] = []
+            for item in list_command:
+                if " " in item:
+                    args['command'].append('"' + item + '"')
+                else:
+                    args['command'].append(item)
 
         if self.name:
             args['name'] = self.name
@@ -253,8 +266,14 @@ class ContainerBuilder:
                       mount['Source'] + ':' + mount['Target'] + ':' + mode + mac_add]
 
         command = self.command
+        if command is None:
+            command = ""
         if isinstance(command, list):
-            command = " ".join(command)
+            command = self.command[0]
+            # If the command itself contains arguments, they have to be joined with
+            # quotes, just like self.args
+            if len(command) > 1:
+                command += " " + " ".join('"{0}"'.format(w) for w in self.command[1:])
 
         shell += [
             self.image,
