@@ -193,11 +193,17 @@ class ContainerBuilder:
 
         if self.command is None:
             args['command'] = None
-        else:
-            list_command = self.command
-            if isinstance(self.command, str):
-                list_command = [self.command]
+        elif isinstance(self.command, str):
 
+            # COMMAND IS STRING
+            args['command'] = self.command
+            if len(self.args) > 0:
+                args['command'] += " " + " ".join('"{0}"'.format(w) for w in self.args)
+
+        else:
+
+            list_command = self.command.copy()
+            # COMMAND IS LIST
             if len(self.args) > 0:
                 list_command += self.args
 
@@ -272,7 +278,7 @@ class ContainerBuilder:
             command = self.command[0]
             # If the command itself contains arguments, they have to be joined with
             # quotes, just like self.args
-            if len(command) > 1:
+            if len(self.command) > 1:
                 command += " " + " ".join('"{0}"'.format(w) for w in self.command[1:])
 
         shell += [

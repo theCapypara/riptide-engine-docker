@@ -26,7 +26,7 @@ class ContainerBuilderTest(unittest.TestCase):
             'detach': False,
             'remove': True,
             'image': IMAGE_NAME,
-            'command': [COMMAND],
+            'command': COMMAND,
             'environment': {},
             'mounts': [],
             'ports': {},
@@ -58,7 +58,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
-            '--label', 'riptide=1', IMAGE_NAME, COMMAND + " elem2"
+            '--label', 'riptide=1', IMAGE_NAME, COMMAND + ' "elem2"'
         ]
         actual_cli = test_obj.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
@@ -91,6 +91,22 @@ class ContainerBuilderTest(unittest.TestCase):
         # Test CLI build
         expected_cli = self.expected_cli_base + [
             '--label', 'riptide=1', IMAGE_NAME, COMMAND + ' "elem2 elem3"'
+        ]
+        actual_cli = test_obj.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+    def test_command_str_spaces_in_first_part_of_command(self):
+        test_obj = ContainerBuilder(image=IMAGE_NAME, command='elem1 elem2 elem3 "elem4a elem4b" \'elem5a elem5b\'')
+        # Test API build
+        self.expected_api_base.update({
+            'command': 'elem1 elem2 elem3 "elem4a elem4b" \'elem5a elem5b\''
+        })
+        actual_api = test_obj.build_docker_api()
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            '--label', 'riptide=1', IMAGE_NAME, 'elem1 elem2 elem3 "elem4a elem4b" \'elem5a elem5b\''
         ]
         actual_cli = test_obj.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
@@ -309,7 +325,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test API build
         self.expected_api_base.update({
-            'command': [COMMAND, 'arg1', 'arg2', 'arg3']
+            'command': COMMAND + ' "arg1" "arg2" "arg3"'
         })
         actual_api = self.fix.build_docker_api()
         self.assertDictEqual(actual_api, self.expected_api_base)
@@ -320,6 +336,25 @@ class ContainerBuilderTest(unittest.TestCase):
             IMAGE_NAME, COMMAND + ' "arg1" "arg2" "arg3"'
         ]
         actual_cli = self.fix.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+    def test_set_args_command_is_list(self):
+        fix = ContainerBuilder(image=IMAGE_NAME, command=[COMMAND, "arg0"])
+        fix.set_args(['arg1', 'arg2', 'arg3'])
+
+        # Test API build
+        self.expected_api_base.update({
+            'command': [COMMAND, 'arg0', 'arg1', 'arg2', 'arg3']
+        })
+        actual_api = fix.build_docker_api()
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            '--label', 'riptide=1',
+            IMAGE_NAME, COMMAND + ' "arg0" "arg1" "arg2" "arg3"'
+        ]
+        actual_cli = fix.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
 
     def test_set_hostname(self):
