@@ -162,7 +162,7 @@ class ContainerBuilder:
         Add main service port.
         Not thread-safe!
         If starting multiple services in multiple threads:
-            This has to be done seperately, right before start,
+            This has to be done separately, right before start,
             and with a lock in place, so that multiple service starts don't reserve the
             same port.
         """
