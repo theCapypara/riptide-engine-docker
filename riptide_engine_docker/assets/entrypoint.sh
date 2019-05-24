@@ -107,7 +107,7 @@ if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then
 fi
 
 # host.riptide.internal is supposed to be routable to the host.
-POSSIBLE_IP=$(getent hosts host.docker.internal | awk '{ print $1 }')
+POSSIBLE_IP=$(grep host.docker.internal /etc/hosts | awk '{ print $1 }')
 if [ ! -z "$POSSIBLE_IP" ]; then
     # windows + mac
     echo "$POSSIBLE_IP  host.riptide.internal "  >> /etc/hosts
