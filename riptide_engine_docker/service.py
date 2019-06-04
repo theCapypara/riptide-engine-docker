@@ -15,8 +15,6 @@ from riptide_engine_docker.container_builder import get_network_name, get_servic
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
-NO_START_STEPS = 6
-
 start_lock = threading.Lock()
 
 
@@ -55,24 +53,29 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
 
     if needs_to_be_started:
 
+        # Number of steps for progress bar:
+        # check + image pull + start + check + 1 for each pre_start/post_start + "started"
+        step_count = 5 + len(service["pre_start"]) + len(service["post_start"])
+        current_step = 2
+
         # 2. Pulling image
-        queue.put(StartStopResultStep(current_step=2, steps=NO_START_STEPS, text="Checking image... "))
+        queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Checking image... "))
         # Check if image exists
         try:
             client.images.get(service["image"])
         except NotFound:
             try:
-                queue.put(StartStopResultStep(current_step=2, steps=NO_START_STEPS, text="Pulling image... "))
+                queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... "))
                 image_name_full = service['image'] if ":" in service['image'] else service['image'] + ":latest"
                 for line in client.api.pull(image_name_full, stream=True):
                     try:
                         status = json.loads(line)
                         if "progress" in status:
-                            queue.put(StartStopResultStep(current_step=2, steps=NO_START_STEPS, text="Pulling image... " + status["status"] + " : " + status["progress"]))
+                            queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... " + status["status"] + " : " + status["progress"]))
                         else:
-                            queue.put(StartStopResultStep(current_step=2, steps=NO_START_STEPS, text="Pulling image... " + status["status"]))
+                            queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... " + status["status"]))
                     except JSONDecodeError:
-                        queue.put(StartStopResultStep(current_step=2, steps=NO_START_STEPS, text="Pulling image... " + str(line)))
+                        queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... " + str(line)))
             except APIError as err:
                 queue.end_with_error(ResultError("ERROR pulling image.", cause=err))
                 stop(project_name, service["$name"], client)
@@ -99,7 +102,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         cmd_no = -1
         for cmd in service["pre_start"]:
             cmd_no = cmd_no + 1
-            queue.put(StartStopResultStep(current_step=3, steps=NO_START_STEPS, text="Pre Start: " + cmd))
+            current_step += 1
+            queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pre Start: " + cmd))
             try:
                 # Remove first, just to be sure
                 try:
@@ -131,7 +135,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 return
 
         # 4. Starting the container
-        queue.put(StartStopResultStep(current_step=4, steps=NO_START_STEPS, text="Starting Container..."))
+        current_step += 1
+        queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Starting Container..."))
 
         try:
             # Lock here to prevent race conditions with port assignment
@@ -146,7 +151,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             return
 
         # 4b. Checking if it actually started or just crashed immediately
-        queue.put(StartStopResultStep(current_step=4, steps=NO_START_STEPS, text="Checking..."))
+        current_step += 1
+        queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Checking..."))
         sleep(3)
         try:
             container = client.containers.get(name)
@@ -163,7 +169,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         cmd_no = -1
         for cmd in service["post_start"]:
             cmd_no = cmd_no + 1
-            queue.put(StartStopResultStep(current_step=5, steps=NO_START_STEPS, text="Post Start: " + cmd))
+            current_step += 1
+            queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Post Start: " + cmd))
             try:
                 container.exec_run(
                     cmd=["/bin/sh", "-c", cmd],
@@ -177,7 +184,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 return
 
         # 6. Done!
-        queue.put(StartStopResultStep(current_step=6, steps=NO_START_STEPS, text="Started!"))
+        current_step += 1
+        queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Started!"))
     else:
         queue.put(StartStopResultStep(current_step=2, steps=2, text='Already started!'))
     queue.end()
