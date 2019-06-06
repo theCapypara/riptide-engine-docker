@@ -99,11 +99,11 @@ class DockerEngine(AbstractEngine):
         except APIError:
             return None
 
-    def cmd(self, project: Project, command_name: str, arguments: List[str]) -> None:
+    def cmd(self, project: Project, command_name: str, arguments: List[str]) -> int:
         # Start network
         network.start(self.client, project["name"])
 
-        cmd_fg(self.client, project, command_name, arguments)
+        return cmd_fg(self.client, project, command_name, arguments)
 
     def service_fg(self, project: Project, service_name: str, arguments: List[str]) -> None:
         # Start network
