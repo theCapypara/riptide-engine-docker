@@ -107,14 +107,17 @@ if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then
 fi
 
 # host.riptide.internal is supposed to be routable to the host.
-POSSIBLE_IP=$(grep host.docker.internal /etc/hosts | awk '{ print $1 }')
-if [ ! -z "$POSSIBLE_IP" ]; then
-    # windows + mac
-    echo "$POSSIBLE_IP  host.riptide.internal "  >> /etc/hosts
-else
-    # linux
-    echo "172.17.0.1  host.riptide.internal "  >> /etc/hosts
-fi
+# Run this in the background just in case the network is responding slow
+(
+    POSSIBLE_IP=$(getent hosts host.docker.internal | awk '{ print $1 }')
+    if [ ! -z "$POSSIBLE_IP" ]; then
+        # windows + mac
+        echo "$POSSIBLE_IP  host.riptide.internal "  >> /etc/hosts
+    else
+        # linux
+        echo "172.17.0.1  host.riptide.internal "  >> /etc/hosts
+    fi
+) &
 
 # ENV_PATH = PATH to make it consistent with the default Docker API
 echo "
