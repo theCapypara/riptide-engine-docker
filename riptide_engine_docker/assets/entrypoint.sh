@@ -130,6 +130,7 @@ ENV_PATH PATH=$PATH
 # to a network AFTER it's been started. But container.create and then
 # running it later is currently broken in the Python Docker API.
 sleep 0.2
+wait
 
 # Run original entrypoint and/or cmd
 if [ -z "RIPTIDE__DOCKER_DONT_RUN_CMD" ]; then
