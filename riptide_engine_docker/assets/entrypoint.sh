@@ -109,6 +109,7 @@ fi
 # host.riptide.internal is supposed to be routable to the host.
 # Run this in the background just in case the network is responding slow
 (
+    sleep 2
     POSSIBLE_IP=$(getent hosts host.docker.internal | awk '{ print $1 }')
     if [ ! -z "$POSSIBLE_IP" ]; then
         # windows + mac
