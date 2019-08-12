@@ -11,7 +11,8 @@ from riptide.tests.stubs import ProjectStub
 from riptide_engine_docker.container_builder import ContainerBuilder, ENTRYPOINT_SH, ENTRYPOINT_CONTAINER_PATH, \
     EENV_ORIGINAL_ENTRYPOINT, EENV_DONT_RUN_CMD, EENV_COMMAND_LOG_PREFIX, EENV_USER, EENV_GROUP, \
     EENV_RUN_MAIN_CMD_AS_USER, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, RIPTIDE_DOCKER_LABEL_MAIN, RIPTIDE_DOCKER_LABEL_PROJECT, \
-    RIPTIDE_DOCKER_LABEL_SERVICE, RIPTIDE_DOCKER_LABEL_HTTP_PORT, EENV_USER_RUN, DOCKER_ENGINE_HTTP_PORT_BND_START
+    RIPTIDE_DOCKER_LABEL_SERVICE, RIPTIDE_DOCKER_LABEL_HTTP_PORT, EENV_USER_RUN, DOCKER_ENGINE_HTTP_PORT_BND_START, \
+    EENV_ON_LINUX
 
 IMAGE_NAME = 'unit/testimage'
 COMMAND = 'test_command'
@@ -27,7 +28,7 @@ class ContainerBuilderTest(unittest.TestCase):
             'remove': True,
             'image': IMAGE_NAME,
             'command': COMMAND,
-            'environment': {},
+            'environment': {EENV_ON_LINUX: '1'},
             'mounts': [],
             'ports': {},
             'labels': {'riptide': '1'}
@@ -42,7 +43,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
-            '--label', 'riptide=1', IMAGE_NAME, COMMAND
+            '-e', EENV_ON_LINUX + '=1', '--label', 'riptide=1', IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
@@ -58,7 +59,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
-            '--label', 'riptide=1', IMAGE_NAME, COMMAND + ' "elem2"'
+            '-e', EENV_ON_LINUX + '=1', '--label', 'riptide=1', IMAGE_NAME, COMMAND + ' "elem2"'
         ]
         actual_cli = test_obj.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
@@ -74,7 +75,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
-            '--label', 'riptide=1', IMAGE_NAME, ''
+            '-e', EENV_ON_LINUX + '=1', '--label', 'riptide=1', IMAGE_NAME, ''
         ]
         actual_cli = test_obj.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
@@ -90,7 +91,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
-            '--label', 'riptide=1', IMAGE_NAME, COMMAND + ' "elem2 elem3"'
+            '-e', EENV_ON_LINUX + '=1', '--label', 'riptide=1', IMAGE_NAME, COMMAND + ' "elem2 elem3"'
         ]
         actual_cli = test_obj.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
@@ -106,7 +107,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
-            '--label', 'riptide=1', IMAGE_NAME, 'elem1 elem2 elem3 "elem4a elem4b" \'elem5a elem5b\''
+            '-e', EENV_ON_LINUX + '=1', '--label', 'riptide=1', IMAGE_NAME, 'elem1 elem2 elem3 "elem4a elem4b" \'elem5a elem5b\''
         ]
         actual_cli = test_obj.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
@@ -134,14 +135,14 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test API build
         self.expected_api_base.update({
-            'environment': {'test_key': 'test_value'}
+            'environment': {'test_key': 'test_value', EENV_ON_LINUX: '1'}
         })
         actual_api = self.fix.build_docker_api()
         self.assertDictEqual(actual_api, self.expected_api_base)
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
-            '-e', 'test_key=test_value',
+            '-e', EENV_ON_LINUX + '=1', '-e', 'test_key=test_value',
             '--label', 'riptide=1', IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -162,6 +163,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             '--label', 'test_key=test_value', IMAGE_NAME, COMMAND
         ]
@@ -197,6 +199,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             '-v', '/host_path:/container_path:rw',
             '-v', '/host_path2:/container_path2:ro',
@@ -234,6 +237,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             '-v', '/host_path:/container_path:rw:delegated',
             '-v', '/host_path2:/container_path2:ro:delegated',
@@ -255,6 +259,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             '-p', '5678:1234',
             '-p', '5432:9876',
@@ -276,6 +281,7 @@ class ContainerBuilderTest(unittest.TestCase):
         # Test CLI build
         expected_cli = self.expected_cli_base + [
             '--network', 'name',
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             IMAGE_NAME, COMMAND
         ]
@@ -295,6 +301,7 @@ class ContainerBuilderTest(unittest.TestCase):
         # Test CLI build
         expected_cli = self.expected_cli_base + [
             '--name', 'blubbeldiblub',
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             IMAGE_NAME, COMMAND
         ]
@@ -314,6 +321,7 @@ class ContainerBuilderTest(unittest.TestCase):
         # Test CLI build
         expected_cli = self.expected_cli_base + [
             '--entrypoint', '/usr/bin/very-important-script',
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             IMAGE_NAME, COMMAND
         ]
@@ -332,6 +340,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             IMAGE_NAME, COMMAND + ' "arg1" "arg2" "arg3"'
         ]
@@ -351,6 +360,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             IMAGE_NAME, COMMAND + ' "arg0" "arg1" "arg2" "arg3"'
         ]
@@ -370,6 +380,7 @@ class ContainerBuilderTest(unittest.TestCase):
         # Test CLI build
         expected_cli = self.expected_cli_base + [
             '--hostname', 'dubdub',
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             IMAGE_NAME, COMMAND
         ]
@@ -389,6 +400,7 @@ class ContainerBuilderTest(unittest.TestCase):
         # Test CLI build
         expected_cli = self.expected_cli_base + [
             '-w', '/tmp/blubbel',
+            '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
             IMAGE_NAME, COMMAND
         ]
@@ -418,7 +430,8 @@ class ContainerBuilderTest(unittest.TestCase):
                     consistency='delegated'
                 )],
             'environment': {
-                EENV_ORIGINAL_ENTRYPOINT: 'cmd "arg1" "arg2 with space"'
+                EENV_ORIGINAL_ENTRYPOINT: 'cmd "arg1" "arg2 with space"',
+                EENV_ON_LINUX: '1'
             }
         })
         actual_api = self.fix.build_docker_api()
@@ -428,6 +441,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=cmd "arg1" "arg2 with space"',
             '--label', 'riptide=1',
             '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
@@ -462,7 +476,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 )],
             'environment': {
                 EENV_ORIGINAL_ENTRYPOINT: expected_sh + ep_value,
-                EENV_DONT_RUN_CMD: 'true'
+                EENV_DONT_RUN_CMD: 'true',
+                EENV_ON_LINUX: '1'
             }
         })
         actual_api = self.fix.build_docker_api()
@@ -472,6 +487,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=' + expected_sh + ep_value,
             '-e', EENV_DONT_RUN_CMD + '=true',
             '--label', 'riptide=1',
@@ -504,7 +520,8 @@ class ContainerBuilderTest(unittest.TestCase):
                     consistency='delegated'
                 )],
             'environment': {
-                EENV_ORIGINAL_ENTRYPOINT: ''
+                EENV_ORIGINAL_ENTRYPOINT: '',
+                EENV_ON_LINUX: '1'
             }
         })
         actual_api = self.fix.build_docker_api()
@@ -514,6 +531,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '--label', 'riptide=1',
             '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
@@ -602,7 +620,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_GROUP: '8989',
                 EENV_RUN_MAIN_CMD_AS_USER: 'yes',
                 'key1': 'value1',
-                'key2': 'value2'
+                'key2': 'value2',
+                EENV_ON_LINUX: '1'
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -618,6 +637,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', 'key1=value1',
             '-e', 'key2=value2',
@@ -683,7 +703,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_ORIGINAL_ENTRYPOINT: '',
                 EENV_USER: '9898',
                 EENV_GROUP: '8989',
-                EENV_RUN_MAIN_CMD_AS_USER: 'yes'
+                EENV_RUN_MAIN_CMD_AS_USER: 'yes',
+                EENV_ON_LINUX: '1'
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -699,6 +720,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
@@ -757,7 +779,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_USER: '9898',
                 EENV_USER_RUN: '12345',
                 EENV_GROUP: '8989',
-                EENV_RUN_MAIN_CMD_AS_USER: 'yes'
+                EENV_RUN_MAIN_CMD_AS_USER: 'yes',
+                EENV_ON_LINUX: '1'
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -773,6 +796,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
@@ -830,7 +854,8 @@ class ContainerBuilderTest(unittest.TestCase):
             'environment': {
                 EENV_ORIGINAL_ENTRYPOINT: '',
                 EENV_USER: '9898',
-                EENV_GROUP: '8989'
+                EENV_GROUP: '8989',
+                EENV_ON_LINUX: '1'
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -846,6 +871,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
@@ -900,6 +926,7 @@ class ContainerBuilderTest(unittest.TestCase):
             ],
             'environment': {
                 EENV_ORIGINAL_ENTRYPOINT: '',
+                EENV_ON_LINUX: '1'
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -915,6 +942,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
@@ -953,6 +981,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-e', EENV_ON_LINUX + '=1',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '--label', RIPTIDE_DOCKER_LABEL_HTTP_PORT + '=9876',
             '-p', '9876:4536',
@@ -1014,7 +1043,8 @@ class ContainerBuilderTest(unittest.TestCase):
             'environment': {
                 EENV_ORIGINAL_ENTRYPOINT: '',
                 'key1': 'value1',
-                'key2': 'value2'
+                'key2': 'value2',
+                EENV_ON_LINUX: '1'
             }
         })
         actual_api = self.fix.build_docker_api()
@@ -1024,6 +1054,7 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', 'key1=value1',
             '-e', 'key2=value2',
