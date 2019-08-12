@@ -30,6 +30,7 @@ EENV_RUN_MAIN_CMD_AS_USER = "RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER"
 EENV_ORIGINAL_ENTRYPOINT = "RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT"
 EENV_COMMAND_LOG_PREFIX = "RIPTIDE__DOCKER_CMD_LOGGING_"
 EENV_NO_STDOUT_REDIRECT = "RIPTIDE__DOCKER_NO_STDOUT_REDIRECT"
+EENV_ON_LINUX = "RIPTIDE__DOCKER_ON_LINUX"
 
 # For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
@@ -57,6 +58,9 @@ class ContainerBuilder:
         self.set_label(RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, "1")
         self.run_as_root = False
         self.hostname = None
+
+        on_linux = platform.system().lower().startswith('linux')
+        self.set_env(EENV_ON_LINUX, "1" if on_linux else "0")
 
     def set_env(self, name: str, val: str):
         self.env[name] = val

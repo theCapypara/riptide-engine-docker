@@ -36,6 +36,10 @@
 # RIPTIDE__DOCKER_CMD_LOGGING_*:
 #   Command logging.
 #   All the vlaues of these environment variables will be started and their stdout redirected to /cmd_logs/*.
+#
+# RIPTIDE__DOCKER_ON_LINUX:
+#   "1": Docker is running natively on Linux
+#   "0": Docker is running via a Linux VM.
 
 if [ -z "$RIPTIDE__DOCKER_NO_STDOUT_REDIRECT" ]
 then
@@ -107,18 +111,23 @@ if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then
 fi
 
 # host.riptide.internal is supposed to be routable to the host.
-# Run this in the background just in case the network is responding slow
-nohup sh -c '
-    sleep 5
-    POSSIBLE_IP=$(getent hosts host.docker.internal | awk '"'{ print \$1 }'"')
-    if [ ! -z "$POSSIBLE_IP" ]; then
-        # windows + mac
-        echo "$POSSIBLE_IP  host.riptide.internal "  >> /etc/hosts
-    else
-        # linux
-        echo "172.17.0.1  host.riptide.internal "  >> /etc/hosts
-    fi
-' >& /dev/null &
+if [ "$RIPTIDE__DOCKER_ON_LINUX" == "1" ]; then
+    echo "172.17.0.1  host.riptide.internal "  >> /etc/hosts
+else
+    LOOP=0
+    while [ -z "$POSSIBLE_IP" ]; do
+        POSSIBLE_IP="$(getent hosts host.docker.internal | awk '{ print $1 }')"
+        LOOP=$(expr $LOOP + 1)
+        if [ "$LOOP" == "10" ]; then
+            echo "Riptide: Trying to determine host IP address... this is taking way longer than it should..."
+        fi
+        if [ "$LOOP" == "100" ]; then
+            echo "Riptide: Failed to determine host IP address... giving up. The container might not be able to reach the host system!"
+            POSSIBLE_IP="172.17.0.1"
+        fi
+    done
+    echo "$POSSIBLE_IP  host.riptide.internal "  >> /etc/hosts
+fi
 
 # ENV_PATH = PATH to make it consistent with the default Docker API
 echo "
