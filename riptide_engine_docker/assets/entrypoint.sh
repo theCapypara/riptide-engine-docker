@@ -108,9 +108,9 @@ fi
 
 # host.riptide.internal is supposed to be routable to the host.
 # Run this in the background just in case the network is responding slow
-(
-    sleep 2
-    POSSIBLE_IP=$(getent hosts host.docker.internal | awk '{ print $1 }')
+nohup sh -c '
+    sleep 5
+    POSSIBLE_IP=$(getent hosts host.docker.internal | awk '"'{ print $1 }'"')
     if [ ! -z "$POSSIBLE_IP" ]; then
         # windows + mac
         echo "$POSSIBLE_IP  host.riptide.internal "  >> /etc/hosts
@@ -118,7 +118,7 @@ fi
         # linux
         echo "172.17.0.1  host.riptide.internal "  >> /etc/hosts
     fi
-) &
+' >& /dev/null &
 
 # ENV_PATH = PATH to make it consistent with the default Docker API
 echo "
@@ -130,7 +130,6 @@ ENV_PATH PATH=$PATH
 # to a network AFTER it's been started. But container.create and then
 # running it later is currently broken in the Python Docker API.
 sleep 0.2
-wait
 
 # Run original entrypoint and/or cmd
 if [ -z "RIPTIDE__DOCKER_DONT_RUN_CMD" ]; then
