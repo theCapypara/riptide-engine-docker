@@ -110,7 +110,7 @@ fi
 # Run this in the background just in case the network is responding slow
 nohup sh -c '
     sleep 5
-    POSSIBLE_IP=$(getent hosts host.docker.internal | awk '"'{ print $1 }'"')
+    POSSIBLE_IP=$(getent hosts host.docker.internal | awk '"'{ print \$1 }'"')
     if [ ! -z "$POSSIBLE_IP" ]; then
         # windows + mac
         echo "$POSSIBLE_IP  host.riptide.internal "  >> /etc/hosts
