@@ -111,17 +111,17 @@ if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then
 fi
 
 # host.riptide.internal is supposed to be routable to the host.
-if [ "$RIPTIDE__DOCKER_ON_LINUX" == "1" ]; then
+if [ "$RIPTIDE__DOCKER_ON_LINUX" = "1" ]; then
     echo "172.17.0.1  host.riptide.internal "  >> /etc/hosts
 else
     LOOP=0
     while [ -z "$POSSIBLE_IP" ]; do
         POSSIBLE_IP="$(getent hosts host.docker.internal | awk '{ print $1 }')"
         LOOP=$(expr $LOOP + 1)
-        if [ "$LOOP" == "10" ]; then
+        if [ "$LOOP" = "10" ]; then
             echo "Riptide: Trying to determine host IP address... this is taking way longer than it should..."
         fi
-        if [ "$LOOP" == "100" ]; then
+        if [ "$LOOP" = "100" ]; then
             echo "Riptide: Failed to determine host IP address... giving up. The container might not be able to reach the host system!"
             POSSIBLE_IP="172.17.0.1"
         fi
