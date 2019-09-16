@@ -5,7 +5,7 @@ import os
 import platform
 from typing import List, Union
 
-from docker.types import Mount
+from docker.types import Mount, Ulimit
 
 from riptide.config.document.command import Command
 from riptide.config.document.service import Service
@@ -58,6 +58,7 @@ class ContainerBuilder:
         self.set_label(RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, "1")
         self.run_as_root = False
         self.hostname = None
+        self.allow_full_memlock = False
 
         on_linux = platform.system().lower().startswith('linux')
         self.set_env(EENV_ON_LINUX, "1" if on_linux else "0")
@@ -106,6 +107,10 @@ class ContainerBuilder:
 
     def set_hostname(self, hostname: str):
         self.hostname = hostname
+        return self
+
+    def set_allow_full_memlock(self, flag: bool):
+        self.allow_full_memlock = flag
         return self
 
     def enable_riptide_entrypoint(self, image_config):
@@ -159,6 +164,9 @@ class ContainerBuilder:
             self.set_label(name, val)
         for container, host in ports.items():
             self.set_port(container, host)
+        # Check if ulimit memlock setting is enabled
+        if "allow_full_memlock" in service and service["allow_full_memlock"]:
+            self.set_allow_full_memlock(True)
         return self
 
     def service_add_main_port(self, service: Service):
@@ -231,6 +239,8 @@ class ContainerBuilder:
             args['user'] = 0
         if self.hostname:
             args['hostname'] = self.hostname
+        if self.allow_full_memlock:
+            args['ulimits'] = [Ulimit(name='memlock', soft=-1, hard=-1)]
 
         args['environment'] = self.env
         args['labels'] = self.labels
@@ -274,6 +284,10 @@ class ContainerBuilder:
             mode = 'ro' if mount['ReadOnly'] else 'rw'
             shell += ['-v',
                       mount['Source'] + ':' + mount['Target'] + ':' + mode + mac_add]
+
+        # ulimits
+        if self.allow_full_memlock:
+            shell += ['--ulimit', 'memlock=-1:-1']
 
         command = self.command
         if command is None:
