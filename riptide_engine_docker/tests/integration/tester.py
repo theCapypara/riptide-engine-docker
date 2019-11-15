@@ -59,7 +59,7 @@ class DockerEngineTester(AbstractEngineTester):
     def get_permissions_at(self, path, engine_obj, project, service, write_check=True, is_directory=True, as_user=0):
         container = self._get_container(engine_obj, project, service)
 
-        exit_code, stat_data = container.exec_run(cmd=f'stat {path} -c %%u:%%g:%%a', stderr=False)
+        exit_code, stat_data = container.exec_run(cmd='stat %s -c %%u:%%g:%%a' % path, stderr=False)
         assert exit_code == 0
 
         user, group, mode = tuple(stat_data.decode('utf-8').rstrip().split(':'))
