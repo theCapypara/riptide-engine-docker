@@ -19,7 +19,7 @@ setup(
     url='https://github.com/Parakoopa/riptide-engine-docker/',
     install_requires=[
         'riptide-lib >= 0.3, < 0.4',
-        'docker >= 3.5'
+        'docker >= 4.1'
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -28,6 +28,8 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
     entry_points='''
         [riptide.engine]
