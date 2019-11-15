@@ -134,14 +134,14 @@ class DockerEngine(AbstractEngine):
     def pull_images(self, project: 'Project', line_reset='\n', update_func=lambda msg: None) -> None:
         if "services" in project["app"]:
             for name, service in project["app"]["services"].items():
-                update_func("[service/%s] Pulling '%s':\n" % (name, service["image"]))
+                update_func(f"[service/{name}] Pulling '{service['image']}':\n")
                 self.__pull_image(service['image'] if ":" in service['image'] else service['image'] + ":latest",
                                   line_reset, update_func)
 
         if "commands" in project["app"]:
             for name, command in project["app"]["commands"].items():
                 if "image" in command:
-                    update_func("[command/%s] Pulling '%s':\n" % (name, command["image"]))
+                    update_func(f"[command/{name}] Pulling '{command['image']}':\n")
                     self.__pull_image(command['image'] if ":" in command['image'] else command['image'] + ":latest",
                                       line_reset, update_func)
 
@@ -164,10 +164,10 @@ class DockerEngine(AbstractEngine):
                         update = status["status"]
                 except JSONDecodeError:
                     update = line
-                update_func("%s    %s" % (line_reset, update))
-            update_func("%s    Done!\n" % line_reset)
+                update_func(f"{line_reset}    {update}")
+            update_func(f"{line_reset}    Done!\n")
         except APIError as ex:
             if "404 Client Error: Not Found " in str(ex):
-                update_func("%s    Warning: Image not found in repository.\n" % line_reset)
+                update_func(f"{line_reset}    Warning: Image not found in repository.\n")
             else:
                 raise

@@ -41,10 +41,11 @@ class DockerEngineTester(AbstractEngineTester):
                 if container.status == 'created':
                     self.__wait_until_not_in_created_state(engine_obj, project, service)
                 if container.status != 'running':
-                    raise AssertionError('Container for service %s must be running. Was: %s'
-                                         % (service['$name'], container.status))
+                    raise AssertionError(
+                        f'Container for service {service["$name"]} must be running. Was: {container.status}'
+                    )
             except NotFound as err:
-                raise AssertionError('Container for service %s must be running. Was: Not Found' % service['$name']) from err
+                raise AssertionError(f'Container for service {service["$name"]} must be running. Was: Not Found') from err
 
     def assert_not_running(self, engine_obj, project, services):
         for service in services:
@@ -53,22 +54,22 @@ class DockerEngineTester(AbstractEngineTester):
             except NotFound:
                 pass
             else:
-                raise AssertionError('Container for service %s must be stopped non-present' % service['$name'])
+                raise AssertionError(f'Container for service {service["$name"]} must be stopped non-present')
 
     def get_permissions_at(self, path, engine_obj, project, service, write_check=True, is_directory=True, as_user=0):
         container = self._get_container(engine_obj, project, service)
 
-        exit_code, stat_data = container.exec_run(cmd='stat %s -c %%u:%%g:%%a' % path, stderr=False)
+        exit_code, stat_data = container.exec_run(cmd=f'stat {path} -c %%u:%%g:%%a', stderr=False)
         assert exit_code == 0
 
         user, group, mode = tuple(stat_data.decode('utf-8').rstrip().split(':'))
 
         write_check_result = False
         if write_check and is_directory:
-            exit_code, _ = container.exec_run(cmd='touch %s/__write_check ' % path.rstrip('/'), user=str(as_user))
+            exit_code, _ = container.exec_run(cmd=f'touch {path.rstrip("/")}/__write_check ', user=str(as_user))
             write_check_result = exit_code == 0
         if write_check and not is_directory:
-            exit_code, _ = container.exec_run(cmd='sh -c \'echo "test line" >> %s\'' % path, user=str(as_user))
+            exit_code, _ = container.exec_run(cmd=f'sh -c \'echo "test line" >> {path}\'', user=str(as_user))
             write_check_result = exit_code == 0
 
         return int(user), int(group), int(mode, 8), write_check_result
@@ -79,14 +80,14 @@ class DockerEngineTester(AbstractEngineTester):
         exit_code, env_return = container.exec_run(cmd='/bin/sh -c \'echo "${%s?RIPTIDE___TEST___NOT_SET}"\'' % env)
         env_return = env_return.decode('utf-8').rstrip()
 
-        if env_return == '/bin/sh: 1: %s: RIPTIDE___TEST___NOT_SET' % env:
+        if env_return == f'/bin/sh: 1: {env}: RIPTIDE___TEST___NOT_SET':
             return None
         return env_return
 
     def get_file(self, file, engine, project, service) -> Union[str, None]:
         container = self._get_container(engine, project, service)
 
-        exit_code, env_return = container.exec_run(cmd='cat %s' % file, stderr=False)
+        exit_code, env_return = container.exec_run(cmd=f'cat {file}', stderr=False)
         assert exit_code == 0 or exit_code == 1
         if exit_code == 1:
             return None  # File not found
@@ -102,16 +103,16 @@ class DockerEngineTester(AbstractEngineTester):
         else:
             flag = 'e'
 
-        exit_code, env_return = container.exec_run(cmd='/bin/sh -c \'[ -%s "%s" ] && echo 1 || echo 0\'' % (flag, file), stderr=False)
+        exit_code, env_return = container.exec_run(cmd=f'/bin/sh -c \'[ -{flag} "{file}" ] && echo 1 || echo 0\'', stderr=False)
         assert exit_code == 0
 
         if env_return.decode('utf-8').rstrip() != "1":
-            raise AssertionError("File %s does not exist in container" % file)
+            raise AssertionError(f"File {file} does not exist in container")
 
     def create_file(self, path, engine, project, service, as_user=0):
         container = self._get_container(engine, project, service)
 
-        exit_code, env_return = container.exec_run(cmd='touch %s' % path, stderr=False, user=str(as_user))
+        exit_code, env_return = container.exec_run(cmd=f'touch {path}', stderr=False, user=str(as_user))
         assert exit_code == 0
 
     def __wait_until_not_in_created_state(self, engine_obj, project, service):

@@ -17,14 +17,14 @@ def rm(engine, path, project: 'Project'):
     """
     # TODO: Safety checks, this function is potentially really dangerous right now
     if not path_in_project(path, project):
-        raise PermissionError("Tried to delete a file/directory that is not within the project: %s" % path)
+        raise PermissionError(f"Tried to delete a file/directory that is not within the project: {path}")
     if not os.path.exists(path):
         return
     name_of_file = os.path.basename(path)
     file_dir = os.path.abspath(os.path.join(path, '..'))
     command = Command({
         'image': IMAGE,
-        'command': 'rm -rf /cmd_target/%s' % name_of_file,
+        'command': f'rm -rf /cmd_target/{name_of_file}',
         'additional_volumes': {'target': {
             'host': file_dir,
             'container': '/cmd_target',
@@ -34,7 +34,7 @@ def rm(engine, path, project: 'Project'):
     command.validate()
     (exit_code, output) = engine.cmd_detached(project, command, run_as_root=True)
     if exit_code != 0:
-        raise ExecError("Error removing the path (%s) %s: %s" % (str(exit_code), path, output))
+        raise ExecError(f"Error removing the path ({str(exit_code)}) {path}: {output}")
 
 
 def copy(engine, fromm, to, project: 'Project'):
@@ -43,11 +43,11 @@ def copy(engine, fromm, to, project: 'Project'):
     See AbstractEngine.path_copy for general usage.
     """
     if not path_in_project(to, project):
-        raise PermissionError("Tried to copy into a path that is not within the project: %s -> %s" % fromm, to)
+        raise PermissionError(f"Tried to copy into a path that is not within the project: {fromm} -> {to}")
     if not os.path.exists(fromm):
-        raise OSError("Tried to copy a directory/file that does not exist: " % fromm)
+        raise OSError(f"Tried to copy a directory/file that does not exist: {fromm}")
     if not os.path.exists(os.path.dirname(to)):
-        raise OSError("Tried to copy into a path that does not exist: " % to)
+        raise OSError(f"Tried to copy into a path that does not exist: {to}")
     command = Command({
         'image': IMAGE,
         'command': 'cp -a /copy_from/. /copy_to/',
@@ -64,4 +64,4 @@ def copy(engine, fromm, to, project: 'Project'):
     command.validate()
     (exit_code, output) = engine.cmd_detached(project, command, run_as_root=True)
     if exit_code != 0:
-        raise ExecError("Error copying the directory (%s) %s -> %s: %s" % (str(exit_code), fromm, to, output))
+        raise ExecError(f"Error copying the directory ({str(exit_code)}) {fromm} -> {to}: {output}")

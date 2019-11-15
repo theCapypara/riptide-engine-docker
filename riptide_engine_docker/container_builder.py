@@ -210,7 +210,7 @@ class ContainerBuilder:
             # COMMAND IS STRING
             args['command'] = self.command
             if len(self.args) > 0:
-                args['command'] += " " + " ".join('"{0}"'.format(w) for w in self.args)
+                args['command'] += " " + " ".join(f'"{w}"' for w in self.args)
 
         else:
 
@@ -297,11 +297,11 @@ class ContainerBuilder:
             # If the command itself contains arguments, they have to be joined with
             # quotes, just like self.args
             if len(self.command) > 1:
-                command += " " + " ".join('"{0}"'.format(w) for w in self.command[1:])
+                command += " " + " ".join(f'"{w}"' for w in self.command[1:])
 
         shell += [
             self.image,
-            (command + " " + " ".join('"{0}"'.format(w) for w in self.args)).rstrip()
+            (command + " " + " ".join(f'"{w}"' for w in self.args)).rstrip()
         ]
         return shell
 
@@ -335,7 +335,7 @@ def parse_entrypoint(entrypoint):
         # exec format
         # Turn the list into a string, but quote all arguments
         command = entrypoint.pop(0)
-        arguments = " ".join(['"%s"' % entry for entry in entrypoint])
+        arguments = " ".join([f'"{entry}"' for entry in entrypoint])
         return {
             EENV_ORIGINAL_ENTRYPOINT: command + " " + arguments
         }
