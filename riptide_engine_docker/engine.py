@@ -82,8 +82,13 @@ class DockerEngine(AbstractEngine):
             services[service_name] = service.status(project["name"], service_obj, self.client, system_config)
         return services
 
+    def service_status(self, project: Project, service_name: str, system_config: Config) -> Dict[str, bool]:
+        return service.status(project["name"], project["app"]["services"][service_name], self.client, system_config)
+
+    def container_name_for(self, project: 'Project', service_name: str):
+        return get_service_container_name(project["name"], service_name)
+
     def address_for(self, project: Project, service_name: str) -> Union[None, Tuple[str, int]]:
-        #       TODO doku BA hin und her!
         if "port" not in project["app"]["services"][service_name]:
             return None
 
