@@ -15,7 +15,10 @@ from riptide_engine_docker.container_builder import get_cmd_container_name, get_
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 
 
-def exec_fg(client, project: Project, service_name: str, cols=None, lines=None, root=False) -> None:
+DEFAULT_EXEC_FG_CMD = "if command -v bash >> /dev/null; then bash; else sh; fi"
+
+
+def exec_fg(client, project: Project, service_name: str, cmd: str, cols=None, lines=None, root=False) -> None:
     """Open an interactive shell to one running service container"""
     if service_name not in project["app"]["services"]:
         raise ExecError("Service not found.")
@@ -42,7 +45,7 @@ def exec_fg(client, project: Project, service_name: str, cols=None, lines=None, 
         if "src" in service_obj["roles"]:
             # Service has source code, set workdir in container to current workdir
             shell += ["-w", CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project)]
-        shell += [container_name, "sh", "-c", "if command -v bash >> /dev/null; then bash; else sh; fi"]
+        shell += [container_name, "sh", "-c", cmd]
         pty.spawn(shell, win_repeat_argv0=True)
 
     except NotFound:
