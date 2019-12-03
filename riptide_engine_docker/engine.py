@@ -10,13 +10,13 @@ from docker.errors import APIError
 from riptide.config.document.command import Command
 from riptide.config.document.config import Config
 from riptide.config.document.project import Project
-from riptide.engine.abstract import AbstractEngine
+from riptide.engine.abstract import AbstractEngine, ServiceStoppedException
 from riptide_engine_docker import network, service, path_utils
 from riptide_engine_docker.cmd_detached import cmd_detached
 from riptide_engine_docker.container_builder import get_service_container_name, RIPTIDE_DOCKER_LABEL_HTTP_PORT
 from riptide.engine.project_start_ctx import riptide_start_project_ctx
 from riptide.engine.results import StartStopResultStep, MultiResultQueue, ResultQueue, ResultError
-from riptide_engine_docker.fg import exec_fg, cmd_fg, service_fg, DEFAULT_EXEC_FG_CMD
+from riptide_engine_docker.fg import exec_fg, cmd_fg, service_fg, DEFAULT_EXEC_FG_CMD, cmd_in_service_fg
 
 
 class DockerEngine(AbstractEngine):
@@ -122,8 +122,11 @@ class DockerEngine(AbstractEngine):
                        command_name: str,
                        service_name: str,
                        arguments: List[str]) -> int:
-        # TODO
-        raise NotImplementedError()
+        # Check if service is running
+        if not self.service_status(project, service_name, project.parent()):
+            raise ServiceStoppedException(f'Service {service_name} must be running to use this command.')
+
+        return cmd_in_service_fg(self.client, project, command_name, service_name, arguments)
 
     def service_fg(self,
                    project: 'Project',
