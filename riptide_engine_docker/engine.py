@@ -25,7 +25,10 @@ class DockerEngine(AbstractEngine):
         self.client = docker.from_env()
         self.ping()
 
-    def start_project(self, project: Project, services: List[str]) -> MultiResultQueue[StartStopResultStep]:
+    def start_project(self,
+                      project: Project,
+                      services: List[str],
+                      unimportant_paths_unsynced=False) -> MultiResultQueue[StartStopResultStep]:
         with riptide_start_project_ctx(project):
             # Start network
             network.start(self.client, project["name"])
@@ -104,13 +107,29 @@ class DockerEngine(AbstractEngine):
         except APIError:
             return None
 
-    def cmd(self, project: Project, command_name: str, arguments: List[str]) -> int:
+    def cmd(self,
+            project: 'Project',
+            command_name: str,
+            arguments: List[str],
+            unimportant_paths_unsynced=False) -> int:
         # Start network
         network.start(self.client, project["name"])
 
         return cmd_fg(self.client, project, command_name, arguments)
 
-    def service_fg(self, project: Project, service_name: str, arguments: List[str]) -> None:
+    def cmd_in_service(self,
+                       project: 'Project',
+                       command_name: str,
+                       service_name: str,
+                       arguments: List[str]) -> int:
+        # TODO
+        raise NotImplementedError()
+
+    def service_fg(self,
+                   project: 'Project',
+                   service_name: str,
+                   arguments: List[str],
+                   unimportant_paths_unsynced=False) -> None:
         # Start network
         network.start(self.client, project["name"])
 
@@ -122,9 +141,6 @@ class DockerEngine(AbstractEngine):
 
     def exec_custom(self, project: Project, service_name: str, command: str, cols=None, lines=None, root=False) -> None:
         exec_fg(self.client, project, service_name, command, cols, lines, root)
-
-    def supports_exec(self):
-        return True
 
     def ping(self):
         try:
@@ -160,6 +176,9 @@ class DockerEngine(AbstractEngine):
 
     def path_copy(self, fromm, to, project: 'Project'):
         return path_utils.copy(self, fromm, to, project)
+
+    def performance_value_for_auto(self, key: str, platform: str) -> bool:
+        raise NotImplementedError()
 
     def __pull_image(self, image_name, line_reset, update_func):
         try:

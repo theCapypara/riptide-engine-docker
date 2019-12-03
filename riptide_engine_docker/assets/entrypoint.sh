@@ -116,6 +116,7 @@ fi
 
 # host.riptide.internal is supposed to be routable to the host.
 if [ "$RIPTIDE__DOCKER_ON_LINUX" = "1" ]; then
+    # TODO Resolve IP dynamically
     POSSIBLE_IP="172.17.0.1"
 else
     LOOP=0
