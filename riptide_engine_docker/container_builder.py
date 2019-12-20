@@ -83,6 +83,20 @@ class ContainerBuilder:
         )
         return self
 
+    def set_named_volume_mount(self, name: str, container_path: str, mode='rw'):
+        """
+        Add a named volume. Name is automatically prefixed with riptide__.
+        """
+        vol_name = 'riptide__' + name
+        self.mounts[name] = Mount(
+            target=container_path,
+            source=vol_name,
+            type='volume',
+            read_only=mode == 'ro',
+            labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"}
+        )
+        return self
+
     def set_port(self, cnt: int, host: int):
         self.ports[cnt] = host
         return self
@@ -141,12 +155,15 @@ class ContainerBuilder:
         """
         self.set_env(EENV_HOST_SYSTEM_HOSTNAMES, ' '.join(get_localhost_hosts()))
 
-    def _init_common(self, doc: Union[Service, Command], image_config):
+    def _init_common(self, doc: Union[Service, Command], image_config, use_named_volume):
         self.enable_riptide_entrypoint(image_config)
         self.add_host_hostnames()
         # Add volumes
         for host, volume in doc.collect_volumes().items():
-            self.set_mount(host, volume['bind'], volume['mode'] or 'rw')
+            if use_named_volume and 'name' in volume:
+                self.set_named_volume_mount(volume['name'], volume['bind'], volume['mode'] or 'rw')
+            else:
+                self.set_mount(host, volume['bind'], volume['mode'] or 'rw')
         # Collect environment
         for key, val in doc.collect_environment().items():
             self.set_env(key, val)
@@ -156,7 +173,7 @@ class ContainerBuilder:
         Initialize some data of this builder with the given service object.
         You need to call service_add_main_port separately.
         """
-        self._init_common(service, image_config)
+        self._init_common(service, image_config, service.get_project().parent()['performance']['dont_sync_named_volumes_with_host'])
         # Collect labels
         labels = service_collect_labels(service, service.get_project()["name"])
         # Collect (and process!) additional_ports
@@ -196,7 +213,7 @@ class ContainerBuilder:
         """
         Initialize some data of this builder with the given command object.
         """
-        self._init_common(command, image_config)
+        self._init_common(command, image_config, command.get_project().parent()['performance']['dont_sync_named_volumes_with_host'])
         return self
 
     def build_docker_api(self) -> dict:
@@ -286,8 +303,13 @@ class ContainerBuilder:
         mac_add = ':delegated' if platform.system().lower().startswith('mac') else ''
         for mount in self.mounts.values():
             mode = 'ro' if mount['ReadOnly'] else 'rw'
-            shell += ['-v',
-                      mount['Source'] + ':' + mount['Target'] + ':' + mode + mac_add]
+            if mount["Type"] == "bind":
+                shell += ['-v',
+                          mount['Source'] + ':' + mount['Target'] + ':' + mode + mac_add]
+            else:
+                shell += ['--mount',
+                          f'type=volume,target={mount["Target"]},src={mount["Source"]},ro={"0" if mode == "rw" else "1"},'
+                          f'volume-label="{RIPTIDE_DOCKER_LABEL_IS_RIPTIDE}=1"']
 
         # ulimits
         if self.allow_full_memlock:

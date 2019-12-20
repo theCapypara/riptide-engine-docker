@@ -18,8 +18,8 @@ class DockerEngineTester(AbstractEngineTester):
 
     def reset(self, engine_obj):
         client = engine_obj.client
-        containers = client.containers.list(filters={'label': RIPTIDE_DOCKER_LABEL_IS_RIPTIDE})
 
+        containers = client.containers.list(filters={'label': RIPTIDE_DOCKER_LABEL_IS_RIPTIDE})
         if len(containers) > 0:
             warnings = []
             for container in containers:
@@ -29,8 +29,15 @@ class DockerEngineTester(AbstractEngineTester):
                 container.remove()
             warn("DOCKER TESTER WARNING: Had to delete containers in cleanup after test...: " + ", ".join(warnings))
 
-        networks = client.networks.list(filters={'label': RIPTIDE_DOCKER_LABEL_IS_RIPTIDE})
+        volumes = client.volumes.list(filters={'label': RIPTIDE_DOCKER_LABEL_IS_RIPTIDE})
+        if len(volumes) > 0:
+            warnings = []
+            for volume in volumes:
+                warnings.append(volume.name)
+                volume.remove()
+            warn("DOCKER TESTER WARNING: Had to delete volumes in cleanup after test...: " + ", ".join(warnings))
 
+        networks = client.networks.list(filters={'label': RIPTIDE_DOCKER_LABEL_IS_RIPTIDE})
         for network in networks:
             network.remove()
 
@@ -114,6 +121,12 @@ class DockerEngineTester(AbstractEngineTester):
 
         exit_code, env_return = container.exec_run(cmd=f'touch {path}', stderr=False, user=str(as_user))
         assert exit_code == 0
+
+    def assert_named_volume(self, engine, name):
+        try:
+            engine.client.volumes.get(name)
+        except NotFound as err:
+            raise AssertionError(f"The volume {name} must exist.") from err
 
     def __wait_until_not_in_created_state(self, engine_obj, project, service):
         """Sometimes it takes a while for Docker to start a container. Wait until Docker is done."""

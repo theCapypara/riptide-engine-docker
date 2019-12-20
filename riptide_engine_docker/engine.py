@@ -79,14 +79,14 @@ class DockerEngine(AbstractEngine):
 
         return MultiResultQueue(queues)
 
-    def status(self, project: Project, system_config: Config) -> Dict[str, bool]:
+    def status(self, project: Project) -> Dict[str, bool]:
         services = {}
         for service_name, service_obj in project["app"]["services"].items():
-            services[service_name] = service.status(project["name"], service_obj, self.client, system_config)
+            services[service_name] = service.status(project["name"], service_obj, self.client, project.parent())
         return services
 
-    def service_status(self, project: Project, service_name: str, system_config: Config) -> Dict[str, bool]:
-        return service.status(project["name"], project["app"]["services"][service_name], self.client, system_config)
+    def service_status(self, project: Project, service_name: str) -> Dict[str, bool]:
+        return service.status(project["name"], project["app"]["services"][service_name], self.client, project.parent())
 
     def container_name_for(self, project: 'Project', service_name: str):
         return get_service_container_name(project["name"], service_name)
@@ -181,7 +181,10 @@ class DockerEngine(AbstractEngine):
         return path_utils.copy(self, fromm, to, project)
 
     def performance_value_for_auto(self, key: str, platform: str) -> bool:
-        raise NotImplementedError()
+        if platform != 'linux':
+            if key == 'dont_sync_named_volumes_with_host' or key == 'dont_sync_unimportant_src':
+                return True
+        return False
 
     def __pull_image(self, image_name, line_reset, update_func):
         try:
