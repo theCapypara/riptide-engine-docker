@@ -33,6 +33,9 @@
 #   Contains the original entrypoint. Can be empty. Will be run and get the command passed
 #   (if RIPTIDE__DOCKER_DONT_RUN_CMD is not set)
 #
+# RIPTIDE__DOCKER_NAMED_VOLUMES:
+#   List of named volume mount paths (separated by :). These will be chowned to RIPTIDE__DOCKER_USER_RUN:RIPTIDE__DOCKER_GROUP.
+#
 # RIPTIDE__DOCKER_CMD_LOGGING_*:
 #   Command logging.
 #   All the vlaues of these environment variables will be started and their stdout redirected to /cmd_logs/*.
@@ -105,6 +108,16 @@ if [ ! -z "$RIPTIDE__DOCKER_USER" ]; then
         RIPTIDE__DOCKER_USER_RUN=$RIPTIDE__DOCKER_USER
     fi
 fi
+
+# Chown all provided volume paths
+IFS=':'
+for path in $RIPTIDE__DOCKER_NAMED_VOLUMES; do
+  if [ ! -z "$RIPTIDE__DOCKER_GROUP" ]; then
+    chown $RIPTIDE__DOCKER_USER_RUN:$RIPTIDE__DOCKER_GROUP $path
+  else
+    chown $RIPTIDE__DOCKER_USER_RUN $path
+  fi
+done
 
 # PREPARE SU COMMAND AND ENV
 if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then

@@ -31,6 +31,7 @@ EENV_RUN_MAIN_CMD_AS_USER = "RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER"
 EENV_ORIGINAL_ENTRYPOINT = "RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT"
 EENV_COMMAND_LOG_PREFIX = "RIPTIDE__DOCKER_CMD_LOGGING_"
 EENV_NO_STDOUT_REDIRECT = "RIPTIDE__DOCKER_NO_STDOUT_REDIRECT"
+EENV_NAMED_VOLUMES = "RIPTIDE__DOCKER_NAMED_VOLUMES"
 EENV_ON_LINUX = "RIPTIDE__DOCKER_ON_LINUX"
 EENV_HOST_SYSTEM_HOSTNAMES = "RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES"
 
@@ -65,6 +66,8 @@ class ContainerBuilder:
         on_linux = platform.system().lower().startswith('linux')
         self.set_env(EENV_ON_LINUX, "1" if on_linux else "0")
 
+        self.named_volumes_in_cnt = []
+
     def set_env(self, name: str, val: str):
         self.env[name] = val
         return self
@@ -95,6 +98,7 @@ class ContainerBuilder:
             read_only=mode == 'ro',
             labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"}
         )
+        self.named_volumes_in_cnt.append(container_path)
         return self
 
     def set_port(self, cnt: int, host: int):
@@ -264,6 +268,11 @@ class ContainerBuilder:
             args['ulimits'] = [Ulimit(name='memlock', soft=-1, hard=-1)]
 
         args['environment'] = self.env
+
+        # Add list of named volume paths for Docker to chown
+        if len(self.named_volumes_in_cnt) > 0:
+            args['environment'][EENV_NAMED_VOLUMES] = ':'.join(self.named_volumes_in_cnt)
+
         args['labels'] = self.labels
         args['ports'] = self.ports
         args['mounts'] = list(self.mounts.values())
@@ -292,6 +301,10 @@ class ContainerBuilder:
 
         for key, value in self.env.items():
             shell += ['-e', key + '=' + value]
+
+        # Add list of named volume paths for Docker to chown
+        if len(self.named_volumes_in_cnt) > 0:
+            shell += ['e', EENV_NAMED_VOLUMES + '=' + ':'.join(self.named_volumes_in_cnt)]
 
         for key, value in self.labels.items():
             shell += ['--label', key + '=' + value]
