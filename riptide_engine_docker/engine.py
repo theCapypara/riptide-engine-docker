@@ -123,7 +123,7 @@ class DockerEngine(AbstractEngine):
                        service_name: str,
                        arguments: List[str]) -> int:
         # Check if service is running
-        if not self.service_status(project, service_name, project.parent()):
+        if not self.service_status(project, service_name):
             raise ServiceStoppedException(f'Service {service_name} must be running to use this command.')
 
         return cmd_in_service_fg(self.client, project, command_name, service_name, arguments)
