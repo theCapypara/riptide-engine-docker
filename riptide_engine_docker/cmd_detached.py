@@ -1,4 +1,5 @@
 import os
+from time import sleep
 
 from docker import DockerClient
 from docker.errors import NotFound, ContainerError
@@ -6,6 +7,7 @@ from docker.errors import NotFound, ContainerError
 from riptide_engine_docker.container_builder import ContainerBuilder, get_network_name, EENV_USER, EENV_GROUP, \
     EENV_RUN_MAIN_CMD_AS_USER, EENV_NO_STDOUT_REDIRECT
 from riptide.lib.cross_platform.cpuser import getuid, getgid
+from riptide_engine_docker.network import add_network_links
 
 
 def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', run_as_root=False) -> (int, str):
@@ -40,7 +42,10 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
         builder.set_env(EENV_GROUP, str(getgid()))
 
     try:
-        output = client.containers.run(**builder.build_docker_api())
+        container = client.containers.create(**builder.build_docker_api())
+        add_network_links(client, container, command["$name"], project["links"])
+        container.start()
+        output = container.logs()
         return 0, output
     except ContainerError as err:
         return err.exit_status, err.stderr

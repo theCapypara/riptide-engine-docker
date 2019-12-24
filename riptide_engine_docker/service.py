@@ -13,7 +13,8 @@ from riptide.config.document.service import Service
 from riptide_engine_docker.container_builder import get_network_name, get_service_container_name, \
     ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, EENV_NO_STDOUT_REDIRECT, EENV_ORIGINAL_ENTRYPOINT
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
-from riptide.lib.cross_platform.cpuser import getuid, getgid
+from riptide.lib.cross_platform.cpuser import getuid
+from riptide_engine_docker.network import add_network_links
 
 start_lock = threading.Lock()
 
@@ -128,7 +129,13 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 pre_start_config['environment'][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
 
                 # RUN
-                client.containers.run(**pre_start_config)
+                container = client.containers.create(**pre_start_config)
+                add_network_links(client, container, None, service.get_project()["links"])
+                container.start()
+                exit_code = container.wait()
+                if exit_code["StatusCode"] != 0:
+                    raise ContainerError(container, exit_code, cmd, service["image"], container.logs(stdout=False))
+
             except (APIError, ContainerError) as err:
                 queue.end_with_error(ResultError("ERROR running pre start command '" + cmd + "'.", cause=err))
                 stop(project_name, service["$name"], client)
@@ -142,10 +149,14 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
             # Lock here to prevent race conditions with port assignment
             with start_lock:
                 builder.service_add_main_port(service)
-                # RUN
-                container = client.containers.run(**builder.build_docker_api(detach=True, remove=False))
-                # Add container to network
+                # CREATE
+                container = client.containers.create(**builder.build_docker_api())
+                # Add container to link networks
+                add_network_links(client, container, service["$name"], service.get_project()["links"])
+                # Add container to main network
                 client.networks.get(get_network_name(project_name)).connect(container, aliases=[service["$name"]])
+                # RUN
+                container.start()
         except (APIError, ContainerError) as err:
             queue.end_with_error(ResultError("ERROR starting container.", cause=err))
             return

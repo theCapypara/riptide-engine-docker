@@ -190,16 +190,11 @@ class ContainerBuilder:
         self._init_common(command, image_config)
         return self
 
-    def build_docker_api(self, detach=False, remove=True) -> dict:
+    def build_docker_api(self) -> dict:
         """
         Build the docker container in the form of Docker API containers.run arguments.
-
-        :param detach: Whether or not to set the detach option.
-        :param remove: Whether or not to set the remove option.
         """
         args = {
-            'detach': detach,
-            'remove': remove,
             'image': self.image
         }
 

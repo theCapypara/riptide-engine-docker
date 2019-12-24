@@ -135,10 +135,9 @@ ENV_PATH PATH=$PATH
 " > /etc/login.defs
 
 # Wait just a little while... this has to do with some
-# fun race conditions in resolving host names because of adding the container
-# to a network AFTER it's been started. But container.create and then
-# running it later is currently broken in the Python Docker API.
-sleep 0.2
+# fun race conditions in resolving host names for commands
+# because of adding the container to a network AFTER it's been started.
+sleep 0.05
 
 # Run original entrypoint and/or cmd
 if [ -z "RIPTIDE__DOCKER_DONT_RUN_CMD" ]; then

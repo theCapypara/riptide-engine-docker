@@ -1,3 +1,5 @@
+from time import sleep
+
 import riptide.lib.cross_platform.cppty as pty
 from typing import List, Union
 
@@ -13,7 +15,8 @@ from riptide_engine_docker.container_builder import get_cmd_container_name, get_
     get_service_container_name, ContainerBuilder, EENV_USER, EENV_GROUP, EENV_RUN_MAIN_CMD_AS_USER, \
     EENV_NO_STDOUT_REDIRECT
 from riptide.lib.cross_platform.cpuser import getuid, getgid
-
+from riptide_engine_docker.network import add_network_links
+import threading
 
 DEFAULT_EXEC_FG_CMD = "if command -v bash >> /dev/null; then bash; else sh; fi"
 
@@ -119,5 +122,32 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
         builder.set_env(EENV_USER, str(getuid()))
         builder.set_env(EENV_GROUP, str(getgid()))
 
+    # Using a new thread:
+    # Add the container link networks after docker run started... I tried a combo of Docker API create and Docker CLI
+    # start to make it cleaner, but 'docker start' does not work well for interactive commands at all,
+    # so that's the best we can do
+    AddNetLinks(container_name, client, project["links"]).start()
+
     # XXX: Needs to be shifted by 1 byte because the return value of os.waitpid is shifted for some reason???
     return pty.spawn(builder.build_docker_cli(), win_repeat_argv0=True) >> 8
+
+
+def _wait_until_container_exists(client, container_name):
+    try:
+        container = client.containers.get(container_name)
+    except NotFound:
+        sleep(0.0025)
+        return _wait_until_container_exists(client, container_name)
+    return container
+
+
+class AddNetLinks(threading.Thread):
+    def __init__(self, container_name, client, links):
+        threading.Thread.__init__(self)
+        self.links = links
+        self.client = client
+        self.container_name = container_name
+
+    def run(self):
+        container = _wait_until_container_exists(self.client, self.container_name)
+        add_network_links(self.client, container, None, self.links)
