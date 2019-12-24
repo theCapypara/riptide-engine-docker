@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 import os
 import platform
+from pathlib import PurePosixPath
 from typing import List, Union
 
 from docker.types import Mount, Ulimit
@@ -34,6 +35,7 @@ EENV_NO_STDOUT_REDIRECT = "RIPTIDE__DOCKER_NO_STDOUT_REDIRECT"
 EENV_NAMED_VOLUMES = "RIPTIDE__DOCKER_NAMED_VOLUMES"
 EENV_ON_LINUX = "RIPTIDE__DOCKER_ON_LINUX"
 EENV_HOST_SYSTEM_HOSTNAMES = "RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES"
+EENV_OVERLAY_TARGETS = "RIPTIDE__DOCKER_OVERLAY_TARGETS"
 
 # For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
@@ -62,6 +64,7 @@ class ContainerBuilder:
         self.run_as_root = False
         self.hostname = None
         self.allow_full_memlock = False
+        self.cap_sys_admin = False
 
         on_linux = platform.system().lower().startswith('linux')
         self.set_env(EENV_ON_LINUX, "1" if on_linux else "0")
@@ -159,7 +162,7 @@ class ContainerBuilder:
         """
         self.set_env(EENV_HOST_SYSTEM_HOSTNAMES, ' '.join(get_localhost_hosts()))
 
-    def _init_common(self, doc: Union[Service, Command], image_config, use_named_volume):
+    def _init_common(self, doc: Union[Service, Command], image_config, use_named_volume, unimportant_paths):
         self.enable_riptide_entrypoint(image_config)
         self.add_host_hostnames()
         # Add volumes
@@ -171,13 +174,26 @@ class ContainerBuilder:
         # Collect environment
         for key, val in doc.collect_environment().items():
             self.set_env(key, val)
+        # Add unimportant paths to the list of dirs to be used with overlayfs
+        self.set_env(EENV_OVERLAY_TARGETS, ':'.join(unimportant_paths))
+        # Mounting bind/overlayfs will require SYS_ADMIN caps:
+        if len(unimportant_paths) > 0:
+            self.cap_sys_admin = True
 
     def init_from_service(self, service: Service, image_config):
         """
         Initialize some data of this builder with the given service object.
         You need to call service_add_main_port separately.
         """
-        self._init_common(service, image_config, service.get_project().parent()['performance']['dont_sync_named_volumes_with_host'])
+        perf_settings = service.get_project().parent()['performance']
+        self._init_common(
+            service,
+            image_config,
+            perf_settings['dont_sync_named_volumes_with_host'],
+            [
+                _make_abs_to_src(p) for p in service.parent()['unimportant_paths']
+            ] if perf_settings['dont_sync_unimportant_src'] else []
+        )
         # Collect labels
         labels = service_collect_labels(service, service.get_project()["name"])
         # Collect (and process!) additional_ports
@@ -217,7 +233,15 @@ class ContainerBuilder:
         """
         Initialize some data of this builder with the given command object.
         """
-        self._init_common(command, image_config, command.get_project().parent()['performance']['dont_sync_named_volumes_with_host'])
+        perf_settings = command.get_project().parent()['performance']
+        self._init_common(
+            command,
+            image_config,
+            perf_settings['dont_sync_named_volumes_with_host'],
+            [
+                _make_abs_to_src(p) for p in command.parent()['unimportant_paths']
+            ] if perf_settings['dont_sync_unimportant_src'] else []
+        )
         return self
 
     def build_docker_api(self) -> dict:
@@ -266,6 +290,8 @@ class ContainerBuilder:
             args['hostname'] = self.hostname
         if self.allow_full_memlock:
             args['ulimits'] = [Ulimit(name='memlock', soft=-1, hard=-1)]
+        if self.cap_sys_admin:
+            args['cap_add'] = ['SYS_ADMIN']
 
         args['environment'] = self.env
 
@@ -327,6 +353,9 @@ class ContainerBuilder:
         # ulimits
         if self.allow_full_memlock:
             shell += ['--ulimit', 'memlock=-1:-1']
+
+        if self.cap_sys_admin:
+            shell += ['--cap-add=SYS_ADMIN']
 
         command = self.command
         if command is None:
@@ -425,3 +454,8 @@ def service_collect_labels(service: Service, project_name):
     if "roles" in service and "main" in service["roles"]:
         labels[RIPTIDE_DOCKER_LABEL_MAIN] = "1"
     return labels
+
+
+def _make_abs_to_src(p):
+    """Convert the given relative path to an absolute path. Relative base is /src/."""
+    return str(PurePosixPath("/src").joinpath(p))

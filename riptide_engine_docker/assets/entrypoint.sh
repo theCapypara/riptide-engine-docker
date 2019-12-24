@@ -44,6 +44,13 @@
 #   List of hostnames to add to the /etc/hosts. These hostnames must be routable to the host
 #   system.
 #
+# RIPTIDE__DOCKER_OVERLAY_TARGETS:
+#   Paths at these locations (separated by :), will be mounted via an overlayfs. Paths must be absolute.
+#   To do this, the target is first bind-mounted to /riptide_overlayfs/lower and then an overlayfs is created
+#   at the position in src with the lower part being the bind mount created in /riptide_overlayfs/lower.
+#   Upper and workdirs are created in /riptide_overlayfs/tmp/upper and /riptide_overlayfs/tmp/work respecitively.
+#   upper and work are kept in memory using tmpfs. Regular tmpfs restrictions apply.
+#
 # RIPTIDE__DOCKER_ON_LINUX:
 #   "1": Docker is running natively on Linux
 #   "0": Docker is running via a Linux VM.
@@ -110,14 +117,48 @@ if [ ! -z "$RIPTIDE__DOCKER_USER" ]; then
 fi
 
 # Chown all provided volume paths
+OLD_IFS=$IFS
 IFS=':'
-for path in $RIPTIDE__DOCKER_NAMED_VOLUMES; do
+for p in $RIPTIDE__DOCKER_NAMED_VOLUMES; do
   if [ ! -z "$RIPTIDE__DOCKER_GROUP" ]; then
-    chown $RIPTIDE__DOCKER_USER_RUN:$RIPTIDE__DOCKER_GROUP $path
+    chown $RIPTIDE__DOCKER_USER_RUN:$RIPTIDE__DOCKER_GROUP $p
   else
-    chown $RIPTIDE__DOCKER_USER_RUN $path
+    chown $RIPTIDE__DOCKER_USER_RUN $p
   fi
 done
+IFS=$OLD_IFS
+
+# Apply overlayfs settings
+apply_overlayfs() {
+    mkdir /riptide_overlayfs
+    mkdir /riptide_overlayfs/tmp
+    mkdir /riptide_overlayfs/tmp/upper
+    mkdir /riptide_overlayfs/tmp/work
+    mount -t tmpfs none "/riptide_overlayfs/tmp"
+    OLD_IFS=$IFS
+    IFS=':'
+    for p in $1; do
+        if [ -d "$p" ]; then
+            l="/riptide_overlayfs/lower$p"
+            u="/riptide_overlayfs/tmp/upper$p"
+            w="/riptide_overlayfs/tmp/work$p"
+            mkdir -p "$l"
+            mkdir -p "$u"
+            mkdir -p "$w"
+            mount --bind "$p" "$l"
+            mount -t overlay overlay -o "lowerdir=$l,upperdir=$u,workdir=$w" $p
+            if [ ! -z "$RIPTIDE__DOCKER_GROUP" ]; then
+              chown $RIPTIDE__DOCKER_USER_RUN:$RIPTIDE__DOCKER_GROUP $p
+            else
+              chown $RIPTIDE__DOCKER_USER_RUN $p
+            fi
+        fi
+    done
+    IFS=$OLD_IFS
+}
+if [ ! -z "$RIPTIDE__DOCKER_OVERLAY_TARGETS" ]; then
+    apply_overlayfs $RIPTIDE__DOCKER_OVERLAY_TARGETS
+fi
 
 # PREPARE SU COMMAND AND ENV
 if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then

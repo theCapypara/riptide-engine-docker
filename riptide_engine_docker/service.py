@@ -134,7 +134,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                 container.start()
                 exit_code = container.wait()
                 if exit_code["StatusCode"] != 0:
-                    raise ContainerError(container, exit_code, cmd, service["image"], container.logs(stdout=False))
+                    raise ContainerError(container, exit_code["StatusCode"], cmd, service["image"], container.logs(stdout=False))
 
             except (APIError, ContainerError) as err:
                 queue.end_with_error(ResultError("ERROR running pre start command '" + cmd + "'.", cause=err))
