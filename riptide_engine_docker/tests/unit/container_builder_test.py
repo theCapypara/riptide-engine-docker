@@ -24,8 +24,6 @@ class ContainerBuilderTest(unittest.TestCase):
     def setUp(self) -> None:
         self.fix = ContainerBuilder(image=IMAGE_NAME, command=COMMAND)
         self.expected_api_base = {
-            'detach': False,
-            'remove': True,
             'image': IMAGE_NAME,
             'command': COMMAND,
             'environment': {EENV_ON_LINUX: '1'},
@@ -111,24 +109,6 @@ class ContainerBuilderTest(unittest.TestCase):
         ]
         actual_cli = test_obj.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
-
-    def test_build_docker_api_detach_true(self):
-        """Test build_docker_api with detach=False"""
-        # Test API build
-        self.expected_api_base.update({
-           'detach': True
-        })
-        actual_api = self.fix.build_docker_api(detach=True)
-        self.assertDictEqual(actual_api, self.expected_api_base)
-
-    def test_build_docker_api_remove_false(self):
-        """Test build_docker_api with remove=False"""
-        # Test API build
-        self.expected_api_base.update({
-           'remove': False
-        })
-        actual_api = self.fix.build_docker_api(remove=False)
-        self.assertDictEqual(actual_api, self.expected_api_base)
 
     def test_set_env(self):
         self.fix.set_env('test_key', 'test_value')
