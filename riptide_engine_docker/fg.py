@@ -1,3 +1,4 @@
+import sys
 from time import sleep
 
 import riptide.lib.cross_platform.cppty as pty
@@ -88,17 +89,17 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
         image = client.images.get(exec_object["image"])
         image_config = client.api.inspect_image(exec_object["image"])["Config"]
     except NotFound:
-        print("Riptide: Pulling image... Your command will be run after that.")
+        print("Riptide: Pulling image... Your command will be run after that.", file=sys.stderr)
         try:
             client.api.pull(exec_object['image'] if ":" in exec_object['image'] else exec_object['image'] + ":latest")
             image = client.images.get(exec_object["image"])
             image_config = client.api.inspect_image(exec_object["image"])["Config"]
         except ImageNotFound as ex:
-            print("Riptide: Could not pull. The image was not found. Your command will not run :(")
+            print("Riptide: Could not pull. The image was not found. Your command will not run :(", file=sys.stderr)
             return
         except APIError as ex:
-            print("Riptide: There was an error pulling the image. Your command will not run :(")
-            print('    ' + str(ex))
+            print("Riptide: There was an error pulling the image. Your command will not run :(", file=sys.stderr)
+            print('    ' + str(ex), file=sys.stderr)
             return
 
     builder = ContainerBuilder(
