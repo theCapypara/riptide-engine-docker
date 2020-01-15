@@ -37,6 +37,10 @@
 #   Command logging.
 #   All the vlaues of these environment variables will be started and their stdout redirected to /cmd_logs/*.
 #
+# RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES:
+#   List of hostnames to add to the /etc/hosts. These hostnames must be routable to the host
+#   system.
+#
 # RIPTIDE__DOCKER_ON_LINUX:
 #   "1": Docker is running natively on Linux
 #   "0": Docker is running via a Linux VM.
@@ -112,7 +116,7 @@ fi
 
 # host.riptide.internal is supposed to be routable to the host.
 if [ "$RIPTIDE__DOCKER_ON_LINUX" = "1" ]; then
-    echo "172.17.0.1  host.riptide.internal "  >> /etc/hosts
+    POSSIBLE_IP="172.17.0.1"
 else
     LOOP=0
     while [ -z "$POSSIBLE_IP" ]; do
@@ -126,7 +130,11 @@ else
             POSSIBLE_IP="172.17.0.1"
         fi
     done
-    echo "$POSSIBLE_IP  host.riptide.internal "  >> /etc/hosts
+fi
+
+# Add all host entries passed in to the /etc/hosts file
+if [ ! -z "$RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES" ]; then
+    echo "$POSSIBLE_IP  $RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES" >> /etc/hosts
 fi
 
 # ENV_PATH = PATH to make it consistent with the default Docker API

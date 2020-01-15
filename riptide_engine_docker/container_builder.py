@@ -9,6 +9,7 @@ from docker.types import Mount, Ulimit
 
 from riptide.config.document.command import Command
 from riptide.config.document.service import Service
+from riptide.config.hosts import get_localhost_hosts
 from riptide.config.service.ports import find_open_port_starting_at
 from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
@@ -31,6 +32,7 @@ EENV_ORIGINAL_ENTRYPOINT = "RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT"
 EENV_COMMAND_LOG_PREFIX = "RIPTIDE__DOCKER_CMD_LOGGING_"
 EENV_NO_STDOUT_REDIRECT = "RIPTIDE__DOCKER_NO_STDOUT_REDIRECT"
 EENV_ON_LINUX = "RIPTIDE__DOCKER_ON_LINUX"
+EENV_HOST_SYSTEM_HOSTNAMES = "RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES"
 
 # For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
@@ -133,8 +135,15 @@ class ContainerBuilder:
 
         return self
 
+    def add_host_hostnames(self):
+        """
+        Adds all hostnames that must be routable to the host system within the container as a environment variable.
+        """
+        self.set_env(EENV_HOST_SYSTEM_HOSTNAMES, ' '.join(get_localhost_hosts()))
+
     def _init_common(self, doc: Union[Service, Command], image_config):
         self.enable_riptide_entrypoint(image_config)
+        self.add_host_hostnames()
         # Add volumes
         for host, volume in doc.collect_volumes().items():
             self.set_mount(host, volume['bind'], volume['mode'] or 'rw')

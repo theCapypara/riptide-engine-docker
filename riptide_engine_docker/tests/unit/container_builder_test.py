@@ -12,11 +12,12 @@ from riptide_engine_docker.container_builder import ContainerBuilder, ENTRYPOINT
     EENV_ORIGINAL_ENTRYPOINT, EENV_DONT_RUN_CMD, EENV_COMMAND_LOG_PREFIX, EENV_USER, EENV_GROUP, \
     EENV_RUN_MAIN_CMD_AS_USER, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, RIPTIDE_DOCKER_LABEL_MAIN, RIPTIDE_DOCKER_LABEL_PROJECT, \
     RIPTIDE_DOCKER_LABEL_SERVICE, RIPTIDE_DOCKER_LABEL_HTTP_PORT, EENV_USER_RUN, DOCKER_ENGINE_HTTP_PORT_BND_START, \
-    EENV_ON_LINUX
+    EENV_ON_LINUX, EENV_HOST_SYSTEM_HOSTNAMES
 
 IMAGE_NAME = 'unit/testimage'
 COMMAND = 'test_command'
 EADMOCK = '__riptide_engine_docker_assets_dir'
+GET_LOCALHOSTS_HOSTS_RETURN = ['dummy1', 'dummy2']
 
 
 class ContainerBuilderTest(unittest.TestCase):
@@ -525,7 +526,8 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch('platform.system', return_value='Linux')
     @mock.patch('riptide_engine_docker.container_builder.getuid', return_value=9898)
     @mock.patch('riptide_engine_docker.container_builder.getgid', return_value=8989)
-    def test_init_from_service_current_user(self, sys_mock: Mock, ead_mock: Mock, getgid_mock: Mock, getuid_mock: Mock):
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_service_current_user(self, *args, **kwargs):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub({
@@ -601,7 +603,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_RUN_MAIN_CMD_AS_USER: 'yes',
                 'key1': 'value1',
                 'key2': 'value2',
-                EENV_ON_LINUX: '1'
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -619,6 +622,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '-e', 'key1=value1',
             '-e', 'key2=value2',
             '-e', EENV_COMMAND_LOG_PREFIX + 'name1=command1',
@@ -645,7 +649,8 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch('platform.system', return_value='Linux')
     @mock.patch('riptide_engine_docker.container_builder.getuid', return_value=9898)
     @mock.patch('riptide_engine_docker.container_builder.getgid', return_value=8989)
-    def test_init_from_service_current_user_main_service(self, sys_mock: Mock, ead_mock: Mock, getgid_mock: Mock, getuid_mock: Mock):
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_service_current_user_main_service(self, *args, **kwargs):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub({
@@ -684,7 +689,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_USER: '9898',
                 EENV_GROUP: '8989',
                 EENV_RUN_MAIN_CMD_AS_USER: 'yes',
-                EENV_ON_LINUX: '1'
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -702,6 +708,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '-e', EENV_RUN_MAIN_CMD_AS_USER + '=yes',
@@ -720,7 +727,8 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch('platform.system', return_value='Linux')
     @mock.patch('riptide_engine_docker.container_builder.getuid', return_value=9898)
     @mock.patch('riptide_engine_docker.container_builder.getgid', return_value=8989)
-    def test_init_from_service_no_current_user_but_set(self, sys_mock: Mock, ead_mock: Mock, getgid_mock: Mock, getuid_mock: Mock):
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_service_no_current_user_but_set(self, *args, **kwargs):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub({
@@ -760,7 +768,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_USER_RUN: '12345',
                 EENV_GROUP: '8989',
                 EENV_RUN_MAIN_CMD_AS_USER: 'yes',
-                EENV_ON_LINUX: '1'
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -778,6 +787,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '-e', EENV_RUN_MAIN_CMD_AS_USER + '=yes',
@@ -797,7 +807,8 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch('platform.system', return_value='Linux')
     @mock.patch('riptide_engine_docker.container_builder.getuid', return_value=9898)
     @mock.patch('riptide_engine_docker.container_builder.getgid', return_value=8989)
-    def test_init_from_service_no_current_user_root(self, sys_mock: Mock, ead_mock: Mock, getgid_mock: Mock, getuid_mock: Mock):
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_service_no_current_user_root(self, *args, **kwargs):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub({
@@ -835,7 +846,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_ORIGINAL_ENTRYPOINT: '',
                 EENV_USER: '9898',
                 EENV_GROUP: '8989',
-                EENV_ON_LINUX: '1'
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -853,6 +865,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
@@ -870,7 +883,8 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch('platform.system', return_value='Linux')
     @mock.patch('riptide_engine_docker.container_builder.getuid', return_value=9898)
     @mock.patch('riptide_engine_docker.container_builder.getgid', return_value=8989)
-    def test_init_from_service_no_current_user_dont_create(self, sys_mock: Mock, ead_mock: Mock, getgid_mock: Mock, getuid_mock: Mock):
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_service_no_current_user_dont_create(self, *args, **kwargs):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub({
@@ -906,7 +920,8 @@ class ContainerBuilderTest(unittest.TestCase):
             ],
             'environment': {
                 EENV_ORIGINAL_ENTRYPOINT: '',
-                EENV_ON_LINUX: '1'
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -924,6 +939,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
@@ -973,7 +989,8 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch('riptide_engine_docker.container_builder.riptide_engine_docker_assets_dir',
                 return_value=EADMOCK)
     @mock.patch('platform.system', return_value='Linux')
-    def test_init_from_command(self, sys_mock: Mock, ead_mock: Mock):
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_command(self, *args, **kwargs):
         self.maxDiff = None
 
         command_stub = YamlConfigDocumentStub({
@@ -1024,7 +1041,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_ORIGINAL_ENTRYPOINT: '',
                 'key1': 'value1',
                 'key2': 'value2',
-                EENV_ON_LINUX: '1'
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
             }
         })
         actual_api = self.fix.build_docker_api()
@@ -1036,6 +1054,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '-e', 'key1=value1',
             '-e', 'key2=value2',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
