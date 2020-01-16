@@ -43,7 +43,7 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
 
     try:
         container = client.containers.create(**builder.build_docker_api())
-        add_network_links(client, container, command["$name"], project["links"])
+        add_network_links(client, container, None, project["links"])
         container.start()
         output = container.logs()
         return 0, output
