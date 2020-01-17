@@ -93,7 +93,9 @@ class ContainerBuilder:
         """
         Add a named volume. Name is automatically prefixed with riptide__.
         """
-        vol_name = 'riptide__' + name
+        from riptide_engine_docker.named_volumes import NAMED_VOLUME_INTERNAL_PREFIX
+
+        vol_name = NAMED_VOLUME_INTERNAL_PREFIX + name
         self.mounts[name] = Mount(
             target=container_path,
             source=vol_name,

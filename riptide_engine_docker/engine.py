@@ -11,7 +11,7 @@ from riptide.config.document.command import Command
 from riptide.config.document.config import Config
 from riptide.config.document.project import Project
 from riptide.engine.abstract import AbstractEngine, ServiceStoppedException
-from riptide_engine_docker import network, service, path_utils
+from riptide_engine_docker import network, service, path_utils, named_volumes
 from riptide_engine_docker.cmd_detached import cmd_detached
 from riptide_engine_docker.container_builder import get_service_container_name, RIPTIDE_DOCKER_LABEL_HTTP_PORT
 from riptide.engine.project_start_ctx import riptide_start_project_ctx
@@ -185,6 +185,18 @@ class DockerEngine(AbstractEngine):
             if key == 'dont_sync_named_volumes_with_host' or key == 'dont_sync_unimportant_src':
                 return True
         return False
+
+    def list_named_volumes(self) -> List[str]:
+        return named_volumes.list(self.client)
+
+    def delete_named_volume(self, name: str) -> None:
+        named_volumes.delete(self.client, name)
+
+    def exists_named_volume(self, name: str) -> bool:
+        return named_volumes.exists(self.client, name)
+
+    def copy_named_volume(self, from_name: str, target_name: str) -> None:
+        named_volumes.copy(self.client, from_name, target_name)
 
     def __pull_image(self, image_name, line_reset, update_func):
         try:
