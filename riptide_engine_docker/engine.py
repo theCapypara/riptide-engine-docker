@@ -28,7 +28,7 @@ class DockerEngine(AbstractEngine):
     def start_project(self,
                       project: Project,
                       services: List[str],
-                      unimportant_paths_unsynced=False) -> MultiResultQueue[StartStopResultStep]:
+                      quick=False) -> MultiResultQueue[StartStopResultStep]:
         with riptide_start_project_ctx(project):
             # Start network
             network.start(self.client, project["name"])
@@ -49,7 +49,8 @@ class DockerEngine(AbstractEngine):
                         project["name"],
                         project["app"]["services"][service_name],
                         self.client,
-                        queue
+                        queue,
+                        quick
                     )
                 else:
                     # Services not found :(
