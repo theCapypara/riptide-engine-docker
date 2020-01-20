@@ -55,5 +55,6 @@ def copy(client: DockerClient, from_name: str, target_name: str) -> None:
     try:
         container = client.containers.create(**builder.build_docker_api())
         container.start()
+        container.remove(force=True)
     except ContainerError as err:
         raise ExecError(f"Error copying the named volume {from_name} -> {target_name}: {err.stderr}") from err
