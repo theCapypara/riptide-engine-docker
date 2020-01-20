@@ -199,6 +199,9 @@ class DockerEngine(AbstractEngine):
     def copy_named_volume(self, from_name: str, target_name: str) -> None:
         named_volumes.copy(self.client, from_name, target_name)
 
+    def create_named_volume(self, name: str) -> None:
+        named_volumes.create(self.client, name)
+
     def __pull_image(self, image_name, line_reset, update_func):
         try:
             for line in self.client.api.pull(image_name, stream=True):

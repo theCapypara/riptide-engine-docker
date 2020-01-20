@@ -58,3 +58,10 @@ def copy(client: DockerClient, from_name: str, target_name: str) -> None:
         container.remove(force=True)
     except ContainerError as err:
         raise ExecError(f"Error copying the named volume {from_name} -> {target_name}: {err.stderr}") from err
+
+
+def create(client: DockerClient, name: str) -> None:
+    if exists(client, name):
+        raise FileExistsError(f"The named volume {name} already exists.")
+
+    client.volumes.create(NAMED_VOLUME_INTERNAL_PREFIX + name, labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"})
