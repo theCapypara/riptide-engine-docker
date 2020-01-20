@@ -147,10 +147,16 @@ apply_overlayfs() {
             mkdir -p "$w"
             mount --bind "$p" "$l"
             mount -t overlay overlay -o "lowerdir=$l,upperdir=$u,workdir=$w" $p
+            # Because of the weird osxfs under Mac and propably also under Windows,
+            # we have to properly set all permissions for these subdirectories
+            RECURSIVE_FLAG=""
+            if [ ! "$RIPTIDE__DOCKER_ON_LINUX" = "1" ]; then
+              RECURSIVE_FLAG="-R"
+            fi
             if [ ! -z "$RIPTIDE__DOCKER_GROUP" ]; then
-              chown $RIPTIDE__DOCKER_USER_RUN:$RIPTIDE__DOCKER_GROUP $p
+              chown $RIPTIDE__DOCKER_USER_RUN:$RIPTIDE__DOCKER_GROUP $p $RECURSIVE_FLAG
             else
-              chown $RIPTIDE__DOCKER_USER_RUN $p
+              chown $RIPTIDE__DOCKER_USER_RUN $p $RECURSIVE_FLAG
             fi
         fi
     done
