@@ -332,7 +332,7 @@ class ContainerBuilder:
 
         # Add list of named volume paths for Docker to chown
         if len(self.named_volumes_in_cnt) > 0:
-            shell += ['e', EENV_NAMED_VOLUMES + '=' + ':'.join(self.named_volumes_in_cnt)]
+            shell += ['-e', EENV_NAMED_VOLUMES + '=' + ':'.join(self.named_volumes_in_cnt)]
 
         for key, value in self.labels.items():
             shell += ['--label', key + '=' + value]
@@ -350,7 +350,7 @@ class ContainerBuilder:
             else:
                 shell += ['--mount',
                           f'type=volume,target={mount["Target"]},src={mount["Source"]},ro={"0" if mode == "rw" else "1"},'
-                          f'volume-label="{RIPTIDE_DOCKER_LABEL_IS_RIPTIDE}=1"']
+                          f'volume-label={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE}=1']
 
         # ulimits
         if self.allow_full_memlock:
