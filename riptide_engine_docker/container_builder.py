@@ -295,7 +295,7 @@ class ContainerBuilder:
         if self.cap_sys_admin:
             args['cap_add'] = ['SYS_ADMIN']
 
-        args['environment'] = self.env
+        args['environment'] = self.env.copy()
 
         # Add list of named volume paths for Docker to chown
         if len(self.named_volumes_in_cnt) > 0:

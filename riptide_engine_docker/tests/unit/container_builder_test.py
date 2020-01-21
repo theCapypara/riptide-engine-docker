@@ -12,7 +12,7 @@ from riptide_engine_docker.container_builder import ContainerBuilder, ENTRYPOINT
     EENV_ORIGINAL_ENTRYPOINT, EENV_DONT_RUN_CMD, EENV_COMMAND_LOG_PREFIX, EENV_USER, EENV_GROUP, \
     EENV_RUN_MAIN_CMD_AS_USER, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, RIPTIDE_DOCKER_LABEL_MAIN, RIPTIDE_DOCKER_LABEL_PROJECT, \
     RIPTIDE_DOCKER_LABEL_SERVICE, RIPTIDE_DOCKER_LABEL_HTTP_PORT, EENV_USER_RUN, DOCKER_ENGINE_HTTP_PORT_BND_START, \
-    EENV_ON_LINUX, EENV_HOST_SYSTEM_HOSTNAMES
+    EENV_ON_LINUX, EENV_HOST_SYSTEM_HOSTNAMES, EENV_OVERLAY_TARGETS, EENV_NAMED_VOLUMES
 
 IMAGE_NAME = 'unit/testimage'
 COMMAND = 'test_command'
@@ -249,7 +249,11 @@ class ContainerBuilderTest(unittest.TestCase):
                     read_only=True,
                     labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"}
                 )
-            ]
+            ],
+            'environment': {
+                EENV_ON_LINUX: '1',
+                EENV_NAMED_VOLUMES: '/container_path:/container_path2'
+            }
         })
         actual_api = self.fix.build_docker_api()
         self.assertDictEqual(actual_api, self.expected_api_base)
@@ -257,9 +261,10 @@ class ContainerBuilderTest(unittest.TestCase):
         # Test CLI build
         expected_cli = self.expected_cli_base + [
             '-e', EENV_ON_LINUX + '=1',
+            '-e', EENV_NAMED_VOLUMES + '=/container_path:/container_path2',
             '--label', 'riptide=1',
-            '--mount', 'type=volume,target=/container_path,src=riptide__name,ro=0,volume-label="riptide=1"',
-            '--mount', 'type=volume,target=/container_path2,src=riptide__name2,ro=1,volume-label="riptide=1"',
+            '--mount', 'type=volume,target=/container_path,src=riptide__name,ro=0,volume-label=riptide=1',
+            '--mount', 'type=volume,target=/container_path2,src=riptide__name2,ro=1,volume-label=riptide=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -649,7 +654,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 'key1': 'value1',
                 'key2': 'value2',
                 EENV_ON_LINUX: '1',
-                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_OVERLAY_TARGETS: ''
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -670,6 +676,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '-e', 'key1=value1',
             '-e', 'key2=value2',
+            '-e', EENV_OVERLAY_TARGETS + '=',
             '-e', EENV_COMMAND_LOG_PREFIX + 'name1=command1',
             '-e', EENV_COMMAND_LOG_PREFIX + 'name2=command2',
             '-e', EENV_USER + '=9898',
@@ -742,7 +749,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_GROUP: '8989',
                 EENV_RUN_MAIN_CMD_AS_USER: 'yes',
                 EENV_ON_LINUX: '1',
-                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_OVERLAY_TARGETS: '',
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -761,6 +769,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+            '-e', EENV_OVERLAY_TARGETS + '=',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '-e', EENV_RUN_MAIN_CMD_AS_USER + '=yes',
@@ -828,7 +837,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_GROUP: '8989',
                 EENV_RUN_MAIN_CMD_AS_USER: 'yes',
                 EENV_ON_LINUX: '1',
-                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_OVERLAY_TARGETS: ''
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -847,6 +857,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+            '-e', EENV_OVERLAY_TARGETS + '=',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '-e', EENV_RUN_MAIN_CMD_AS_USER + '=yes',
@@ -913,7 +924,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_USER: '9898',
                 EENV_GROUP: '8989',
                 EENV_ON_LINUX: '1',
-                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_OVERLAY_TARGETS: ''
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -932,6 +944,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+            '-e', EENV_OVERLAY_TARGETS + '=',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
@@ -994,7 +1007,8 @@ class ContainerBuilderTest(unittest.TestCase):
             'environment': {
                 EENV_ORIGINAL_ENTRYPOINT: '',
                 EENV_ON_LINUX: '1',
-                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_OVERLAY_TARGETS: ''
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -1013,6 +1027,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+            '-e', EENV_OVERLAY_TARGETS + '=',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
@@ -1028,7 +1043,8 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch('platform.system', return_value='Linux')
     @mock.patch('riptide_engine_docker.container_builder.getuid', return_value=9898)
     @mock.patch('riptide_engine_docker.container_builder.getgid', return_value=8989)
-    def test_init_from_service_named_volume_perf_options(self, sys_mock: Mock, ead_mock: Mock, getgid_mock: Mock, getuid_mock: Mock):
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_service_named_volume_perf_options(self, *args, **kwargs):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub({
@@ -1093,7 +1109,10 @@ class ContainerBuilderTest(unittest.TestCase):
                 EENV_USER: '9898',
                 EENV_GROUP: '8989',
                 EENV_RUN_MAIN_CMD_AS_USER: 'yes',
-                EENV_ON_LINUX: '1'
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_OVERLAY_TARGETS: '',
+                EENV_NAMED_VOLUMES: 'bind1'
             },
             'labels': {
                 RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
@@ -1111,15 +1130,18 @@ class ContainerBuilderTest(unittest.TestCase):
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+            '-e', EENV_OVERLAY_TARGETS + '=',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '-e', EENV_RUN_MAIN_CMD_AS_USER + '=yes',
+            '-e', EENV_NAMED_VOLUMES + '=bind1',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
             '--label', RIPTIDE_DOCKER_LABEL_MAIN + '=0',
             '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
-            '--mount', 'type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label="riptide=1"',
+            '--mount', 'type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label=riptide=1',
             '-v', 'host2:bind2:rw',
             IMAGE_NAME, COMMAND
         ]
@@ -1226,7 +1248,8 @@ class ContainerBuilderTest(unittest.TestCase):
                 'key1': 'value1',
                 'key2': 'value2',
                 EENV_ON_LINUX: '1',
-                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN)
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_OVERLAY_TARGETS: ''
             }
         })
         actual_api = self.fix.build_docker_api()
@@ -1241,6 +1264,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '-e', 'key1=value1',
             '-e', 'key2=value2',
+            '-e', EENV_OVERLAY_TARGETS + '=',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
             '-v', 'host1:bind1:ro',
@@ -1253,7 +1277,8 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch('riptide_engine_docker.container_builder.riptide_engine_docker_assets_dir',
                 return_value=EADMOCK)
     @mock.patch('platform.system', return_value='Linux')
-    def test_init_from_command_named_volume_perf_options(self, sys_mock: Mock, ead_mock: Mock):
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_command_named_volume_perf_options(self, *args, **kwargs):
         self.maxDiff = None
 
         config_stub = YamlConfigDocumentStub({
@@ -1307,7 +1332,10 @@ class ContainerBuilderTest(unittest.TestCase):
             ],
             'environment': {
                 EENV_ORIGINAL_ENTRYPOINT: '',
-                EENV_ON_LINUX: '1'
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_NAMED_VOLUMES: 'bind1',
+                EENV_OVERLAY_TARGETS: ''
             }
         })
         actual_api = self.fix.build_docker_api()
@@ -1319,10 +1347,85 @@ class ContainerBuilderTest(unittest.TestCase):
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+            '-e', EENV_OVERLAY_TARGETS + '=',
+            '-e', EENV_NAMED_VOLUMES + '=' + 'bind1',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
-            '--mount', 'type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label="riptide=1"',
+            '--mount', 'type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label=riptide=1',
             '-v', 'host2:bind2:rw',
+            IMAGE_NAME, COMMAND
+        ]
+        actual_cli = self.fix.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+    @mock.patch('riptide_engine_docker.container_builder.riptide_engine_docker_assets_dir',
+                return_value=EADMOCK)
+    @mock.patch('platform.system', return_value='Linux')
+    @mock.patch('riptide_engine_docker.container_builder.get_localhost_hosts', return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_command_unimportant_paths(self, *args, **kwargs):
+        self.maxDiff = None
+
+        config_stub = YamlConfigDocumentStub({
+            'performance': {
+                'dont_sync_named_volumes_with_host': False,
+                # ENABLED FOR THIS TEST:
+                'dont_sync_unimportant_src': True
+            }
+        })
+        project_stub = YamlConfigDocumentStub({}, parent=config_stub)
+        app_stub = YamlConfigDocumentStub({
+            'unimportant_paths': [
+                'unimportant_1', 'unimportant_2/subpath'
+            ]
+        }, parent=project_stub)
+        command_stub = YamlConfigDocumentStub({
+            '$name': 'COMMANDNAME'
+        })
+        command_stub.get_project = MagicMock(return_value=project_stub)
+        command_stub.parent = MagicMock(return_value=app_stub)
+        command_stub.collect_volumes = MagicMock(return_value={})
+        command_stub.collect_environment = MagicMock(return_value={})
+        image_config_mock = {'Entrypoint': '', 'User': '12345'}
+
+        self.fix.init_from_command(command_stub, image_config_mock)
+
+        expected_entrypoint_host_path = os.path.join(EADMOCK, ENTRYPOINT_SH)
+        # Test API build
+        self.expected_api_base.update({
+            'cap_add': ['SYS_ADMIN'],
+            'user': 0,
+            'entrypoint': [ENTRYPOINT_CONTAINER_PATH],
+            'mounts': [
+                Mount(
+                    target=ENTRYPOINT_CONTAINER_PATH,
+                    source=expected_entrypoint_host_path,
+                    type='bind',
+                    read_only=True,
+                    consistency='delegated'
+                )
+            ],
+            'environment': {
+                EENV_ORIGINAL_ENTRYPOINT: '',
+                EENV_ON_LINUX: '1',
+                EENV_HOST_SYSTEM_HOSTNAMES: ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+                EENV_OVERLAY_TARGETS: '/src/unimportant_1:/src/unimportant_2/subpath'
+            }
+        })
+        actual_api = self.fix.build_docker_api()
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
+            '-u', '0',
+            '-e', EENV_ON_LINUX + '=1',
+            '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
+            '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
+            '-e', EENV_OVERLAY_TARGETS + '=/src/unimportant_1:/src/unimportant_2/subpath',
+            '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
+            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--cap-add=SYS_ADMIN',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
