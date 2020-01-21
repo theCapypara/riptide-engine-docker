@@ -10,13 +10,13 @@ from docker.errors import APIError
 from riptide.config.document.command import Command
 from riptide.config.document.config import Config
 from riptide.config.document.project import Project
-from riptide.engine.abstract import AbstractEngine
-from riptide_engine_docker import network, service, path_utils
+from riptide.engine.abstract import AbstractEngine, ServiceStoppedException
+from riptide_engine_docker import network, service, path_utils, named_volumes
 from riptide_engine_docker.cmd_detached import cmd_detached
 from riptide_engine_docker.container_builder import get_service_container_name, RIPTIDE_DOCKER_LABEL_HTTP_PORT
 from riptide.engine.project_start_ctx import riptide_start_project_ctx
 from riptide.engine.results import StartStopResultStep, MultiResultQueue, ResultQueue, ResultError
-from riptide_engine_docker.fg import exec_fg, cmd_fg, service_fg, DEFAULT_EXEC_FG_CMD
+from riptide_engine_docker.fg import exec_fg, cmd_fg, service_fg, DEFAULT_EXEC_FG_CMD, cmd_in_service_fg
 
 
 class DockerEngine(AbstractEngine):
@@ -25,7 +25,10 @@ class DockerEngine(AbstractEngine):
         self.client = docker.from_env()
         self.ping()
 
-    def start_project(self, project: Project, services: List[str]) -> MultiResultQueue[StartStopResultStep]:
+    def start_project(self,
+                      project: Project,
+                      services: List[str],
+                      quick=False) -> MultiResultQueue[StartStopResultStep]:
         with riptide_start_project_ctx(project):
             # Start network
             network.start(self.client, project["name"])
@@ -46,7 +49,8 @@ class DockerEngine(AbstractEngine):
                         project["name"],
                         project["app"]["services"][service_name],
                         self.client,
-                        queue
+                        queue,
+                        quick
                     )
                 else:
                     # Services not found :(
@@ -76,14 +80,14 @@ class DockerEngine(AbstractEngine):
 
         return MultiResultQueue(queues)
 
-    def status(self, project: Project, system_config: Config) -> Dict[str, bool]:
+    def status(self, project: Project) -> Dict[str, bool]:
         services = {}
         for service_name, service_obj in project["app"]["services"].items():
-            services[service_name] = service.status(project["name"], service_obj, self.client, system_config)
+            services[service_name] = service.status(project["name"], service_obj, self.client, project.parent())
         return services
 
-    def service_status(self, project: Project, service_name: str, system_config: Config) -> Dict[str, bool]:
-        return service.status(project["name"], project["app"]["services"][service_name], self.client, system_config)
+    def service_status(self, project: Project, service_name: str) -> Dict[str, bool]:
+        return service.status(project["name"], project["app"]["services"][service_name], self.client, project.parent())
 
     def container_name_for(self, project: 'Project', service_name: str):
         return get_service_container_name(project["name"], service_name)
@@ -104,13 +108,32 @@ class DockerEngine(AbstractEngine):
         except APIError:
             return None
 
-    def cmd(self, project: Project, command_name: str, arguments: List[str]) -> int:
+    def cmd(self,
+            project: 'Project',
+            command_name: str,
+            arguments: List[str],
+            unimportant_paths_unsynced=False) -> int:
         # Start network
         network.start(self.client, project["name"])
 
         return cmd_fg(self.client, project, command_name, arguments)
 
-    def service_fg(self, project: Project, service_name: str, arguments: List[str]) -> None:
+    def cmd_in_service(self,
+                       project: 'Project',
+                       command_name: str,
+                       service_name: str,
+                       arguments: List[str]) -> int:
+        # Check if service is running
+        if not self.service_status(project, service_name):
+            raise ServiceStoppedException(f'Service {service_name} must be running to use this command.')
+
+        return cmd_in_service_fg(self.client, project, command_name, service_name, arguments)
+
+    def service_fg(self,
+                   project: 'Project',
+                   service_name: str,
+                   arguments: List[str],
+                   unimportant_paths_unsynced=False) -> None:
         # Start network
         network.start(self.client, project["name"])
 
@@ -122,9 +145,6 @@ class DockerEngine(AbstractEngine):
 
     def exec_custom(self, project: Project, service_name: str, command: str, cols=None, lines=None, root=False) -> None:
         exec_fg(self.client, project, service_name, command, cols, lines, root)
-
-    def supports_exec(self):
-        return True
 
     def ping(self):
         try:
@@ -160,6 +180,27 @@ class DockerEngine(AbstractEngine):
 
     def path_copy(self, fromm, to, project: 'Project'):
         return path_utils.copy(self, fromm, to, project)
+
+    def performance_value_for_auto(self, key: str, platform: str) -> bool:
+        if platform != 'linux':
+            if key == 'dont_sync_named_volumes_with_host' or key == 'dont_sync_unimportant_src':
+                return True
+        return False
+
+    def list_named_volumes(self) -> List[str]:
+        return named_volumes.list(self.client)
+
+    def delete_named_volume(self, name: str) -> None:
+        named_volumes.delete(self.client, name)
+
+    def exists_named_volume(self, name: str) -> bool:
+        return named_volumes.exists(self.client, name)
+
+    def copy_named_volume(self, from_name: str, target_name: str) -> None:
+        named_volumes.copy(self.client, from_name, target_name)
+
+    def create_named_volume(self, name: str) -> None:
+        named_volumes.create(self.client, name)
 
     def __pull_image(self, image_name, line_reset, update_func):
         try:

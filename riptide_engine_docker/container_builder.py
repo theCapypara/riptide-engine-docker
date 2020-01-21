@@ -3,6 +3,7 @@ from collections import OrderedDict
 
 import os
 import platform
+from pathlib import PurePosixPath
 from typing import List, Union
 
 from docker.types import Mount, Ulimit
@@ -31,8 +32,10 @@ EENV_RUN_MAIN_CMD_AS_USER = "RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER"
 EENV_ORIGINAL_ENTRYPOINT = "RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT"
 EENV_COMMAND_LOG_PREFIX = "RIPTIDE__DOCKER_CMD_LOGGING_"
 EENV_NO_STDOUT_REDIRECT = "RIPTIDE__DOCKER_NO_STDOUT_REDIRECT"
+EENV_NAMED_VOLUMES = "RIPTIDE__DOCKER_NAMED_VOLUMES"
 EENV_ON_LINUX = "RIPTIDE__DOCKER_ON_LINUX"
 EENV_HOST_SYSTEM_HOSTNAMES = "RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES"
+EENV_OVERLAY_TARGETS = "RIPTIDE__DOCKER_OVERLAY_TARGETS"
 
 # For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
@@ -61,9 +64,12 @@ class ContainerBuilder:
         self.run_as_root = False
         self.hostname = None
         self.allow_full_memlock = False
+        self.cap_sys_admin = False
 
         on_linux = platform.system().lower().startswith('linux')
         self.set_env(EENV_ON_LINUX, "1" if on_linux else "0")
+
+        self.named_volumes_in_cnt = []
 
     def set_env(self, name: str, val: str):
         self.env[name] = val
@@ -81,6 +87,23 @@ class ContainerBuilder:
             read_only=mode == 'ro',
             consistency='delegated'  # Performance setting for Docker Desktop on Mac
         )
+        return self
+
+    def set_named_volume_mount(self, name: str, container_path: str, mode='rw'):
+        """
+        Add a named volume. Name is automatically prefixed with riptide__.
+        """
+        from riptide_engine_docker.named_volumes import NAMED_VOLUME_INTERNAL_PREFIX
+
+        vol_name = NAMED_VOLUME_INTERNAL_PREFIX + name
+        self.mounts[name] = Mount(
+            target=container_path,
+            source=vol_name,
+            type='volume',
+            read_only=mode == 'ro',
+            labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"}
+        )
+        self.named_volumes_in_cnt.append(container_path)
         return self
 
     def set_port(self, cnt: int, host: int):
@@ -141,22 +164,39 @@ class ContainerBuilder:
         """
         self.set_env(EENV_HOST_SYSTEM_HOSTNAMES, ' '.join(get_localhost_hosts()))
 
-    def _init_common(self, doc: Union[Service, Command], image_config):
+    def _init_common(self, doc: Union[Service, Command], image_config, use_named_volume, unimportant_paths):
         self.enable_riptide_entrypoint(image_config)
         self.add_host_hostnames()
         # Add volumes
         for host, volume in doc.collect_volumes().items():
-            self.set_mount(host, volume['bind'], volume['mode'] or 'rw')
+            if use_named_volume and 'name' in volume:
+                self.set_named_volume_mount(volume['name'], volume['bind'], volume['mode'] or 'rw')
+            else:
+                self.set_mount(host, volume['bind'], volume['mode'] or 'rw')
         # Collect environment
         for key, val in doc.collect_environment().items():
             self.set_env(key, val)
+        # Add unimportant paths to the list of dirs to be used with overlayfs
+        self.set_env(EENV_OVERLAY_TARGETS, ':'.join(unimportant_paths))
+        # Mounting bind/overlayfs will require SYS_ADMIN caps:
+        if len(unimportant_paths) > 0:
+            self.cap_sys_admin = True
 
     def init_from_service(self, service: Service, image_config):
         """
         Initialize some data of this builder with the given service object.
         You need to call service_add_main_port separately.
         """
-        self._init_common(service, image_config)
+        perf_settings = service.get_project().parent()['performance']
+        project_absolute_unimportant_paths = []
+        if perf_settings['dont_sync_unimportant_src'] and 'unimportant_paths' in service.parent():
+            project_absolute_unimportant_paths = [_make_abs_to_src(p) for p in service.parent()['unimportant_paths']]
+        self._init_common(
+            service,
+            image_config,
+            perf_settings['dont_sync_named_volumes_with_host'],
+            project_absolute_unimportant_paths
+        )
         # Collect labels
         labels = service_collect_labels(service, service.get_project()["name"])
         # Collect (and process!) additional_ports
@@ -196,7 +236,16 @@ class ContainerBuilder:
         """
         Initialize some data of this builder with the given command object.
         """
-        self._init_common(command, image_config)
+        perf_settings = command.get_project().parent()['performance']
+        project_absolute_unimportant_paths = []
+        if perf_settings['dont_sync_unimportant_src'] and 'unimportant_paths' in command.parent():
+            project_absolute_unimportant_paths = [_make_abs_to_src(p) for p in command.parent()['unimportant_paths']]
+        self._init_common(
+            command,
+            image_config,
+            perf_settings['dont_sync_named_volumes_with_host'],
+            project_absolute_unimportant_paths
+        )
         return self
 
     def build_docker_api(self) -> dict:
@@ -245,8 +294,15 @@ class ContainerBuilder:
             args['hostname'] = self.hostname
         if self.allow_full_memlock:
             args['ulimits'] = [Ulimit(name='memlock', soft=-1, hard=-1)]
+        if self.cap_sys_admin:
+            args['cap_add'] = ['SYS_ADMIN']
 
-        args['environment'] = self.env
+        args['environment'] = self.env.copy()
+
+        # Add list of named volume paths for Docker to chown
+        if len(self.named_volumes_in_cnt) > 0:
+            args['environment'][EENV_NAMED_VOLUMES] = ':'.join(self.named_volumes_in_cnt)
+
         args['labels'] = self.labels
         args['ports'] = self.ports
         args['mounts'] = list(self.mounts.values())
@@ -276,6 +332,10 @@ class ContainerBuilder:
         for key, value in self.env.items():
             shell += ['-e', key + '=' + value]
 
+        # Add list of named volume paths for Docker to chown
+        if len(self.named_volumes_in_cnt) > 0:
+            shell += ['-e', EENV_NAMED_VOLUMES + '=' + ':'.join(self.named_volumes_in_cnt)]
+
         for key, value in self.labels.items():
             shell += ['--label', key + '=' + value]
 
@@ -286,12 +346,20 @@ class ContainerBuilder:
         mac_add = ':delegated' if platform.system().lower().startswith('mac') else ''
         for mount in self.mounts.values():
             mode = 'ro' if mount['ReadOnly'] else 'rw'
-            shell += ['-v',
-                      mount['Source'] + ':' + mount['Target'] + ':' + mode + mac_add]
+            if mount["Type"] == "bind":
+                shell += ['-v',
+                          mount['Source'] + ':' + mount['Target'] + ':' + mode + mac_add]
+            else:
+                shell += ['--mount',
+                          f'type=volume,target={mount["Target"]},src={mount["Source"]},ro={"0" if mode == "rw" else "1"},'
+                          f'volume-label={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE}=1']
 
         # ulimits
         if self.allow_full_memlock:
             shell += ['--ulimit', 'memlock=-1:-1']
+
+        if self.cap_sys_admin:
+            shell += ['--cap-add=SYS_ADMIN']
 
         command = self.command
         if command is None:
@@ -390,3 +458,8 @@ def service_collect_labels(service: Service, project_name):
     if "roles" in service and "main" in service["roles"]:
         labels[RIPTIDE_DOCKER_LABEL_MAIN] = "1"
     return labels
+
+
+def _make_abs_to_src(p):
+    """Convert the given relative path to an absolute path. Relative base is /src/."""
+    return str(PurePosixPath("/src").joinpath(p))

@@ -19,7 +19,7 @@ from riptide_engine_docker.network import add_network_links
 start_lock = threading.Lock()
 
 
-def start(project_name: str, service: Service, client: DockerClient, queue: ResultQueue):
+def start(project_name: str, service: Service, client: DockerClient, queue: ResultQueue, quick=False):
     """
     Starts the given service by starting the container (if not already started).
 
@@ -28,11 +28,11 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
     If an error during start occurs, an ResultError is added to the queue, indicating the kind of error.
     On errors, tries to execute stop after updating the queue.
 
-
     :param client:          Docker Client
     :param project_name:    Name of the project to start
     :param service:         Service object defining the service
     :param queue:           ResultQueue to update, or None
+    :param quick:           If True: pre_start and post_start commands are skipped.
     """
 
     name = get_service_container_name(project_name, service["$name"])
@@ -56,7 +56,10 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
 
         # Number of steps for progress bar:
         # check + image pull + start + check + 1 for each pre_start/post_start + "started"
-        step_count = 5 + len(service["pre_start"]) + len(service["post_start"])
+        if not quick:
+            step_count = 5 + len(service["pre_start"]) + len(service["post_start"])
+        else:
+            step_count = 5
         current_step = 2
 
         # 2. Pulling image
@@ -101,45 +104,46 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
 
         # 3. Run pre start commands
         cmd_no = -1
-        for cmd in service["pre_start"]:
-            cmd_no = cmd_no + 1
-            current_step += 1
-            queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pre Start: " + cmd))
-            try:
-                # Remove first, just to be sure
+        if not quick:
+            for cmd in service["pre_start"]:
+                cmd_no = cmd_no + 1
+                current_step += 1
+                queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pre Start: " + cmd))
                 try:
-                    client.containers.get(name + "__pre_start" + str(cmd_no)).stop()
-                except APIError:
-                    pass
-                try:
-                    client.containers.get(name + "__pre_start" + str(cmd_no)).remove()
-                except APIError:
-                    pass
+                    # Remove first, just to be sure
+                    try:
+                        client.containers.get(name + "__pre_start" + str(cmd_no)).stop()
+                    except APIError:
+                        pass
+                    try:
+                        client.containers.get(name + "__pre_start" + str(cmd_no)).remove()
+                    except APIError:
+                        pass
 
-                # Fork built container configuration and adjust it for pre start container
-                pre_start_config = copy.deepcopy(builder.build_docker_api())
-                pre_start_config.update({
-                    'name': name + "__pre_start" + str(cmd_no),
-                    'network': get_network_name(project_name),
-                    # Don't use ports and labels of actual service container
-                    'ports': None,
-                    'labels': {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
-                })
-                pre_start_config['environment'][EENV_NO_STDOUT_REDIRECT] = '1'
-                pre_start_config['environment'][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
+                    # Fork built container configuration and adjust it for pre start container
+                    pre_start_config = copy.deepcopy(builder.build_docker_api())
+                    pre_start_config.update({
+                        'name': name + "__pre_start" + str(cmd_no),
+                        'network': get_network_name(project_name),
+                        # Don't use ports and labels of actual service container
+                        'ports': None,
+                        'labels': {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
+                    })
+                    pre_start_config['environment'][EENV_NO_STDOUT_REDIRECT] = '1'
+                    pre_start_config['environment'][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
 
-                # RUN
-                container = client.containers.create(**pre_start_config)
-                add_network_links(client, container, None, service.get_project()["links"])
-                container.start()
-                exit_code = container.wait()
-                if exit_code["StatusCode"] != 0:
-                    raise ContainerError(container, exit_code, cmd, service["image"], container.logs(stdout=False))
+                    # RUN
+                    container = client.containers.create(**pre_start_config)
+                    add_network_links(client, container, None, service.get_project()["links"])
+                    container.start()
+                    exit_code = container.wait()
+                    if exit_code["StatusCode"] != 0:
+                        raise ContainerError(container, exit_code["StatusCode"], cmd, service["image"], container.logs(stdout=False))
 
-            except (APIError, ContainerError) as err:
-                queue.end_with_error(ResultError("ERROR running pre start command '" + cmd + "'.", cause=err))
-                stop(project_name, service["$name"], client)
-                return
+                except (APIError, ContainerError) as err:
+                    queue.end_with_error(ResultError("ERROR running pre start command '" + cmd + "'.", cause=err))
+                    stop(project_name, service["$name"], client)
+                    return
 
         # 4. Starting the container
         current_step += 1
@@ -178,21 +182,22 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
 
         # 5. Execute Post Start commands via docker exec.
         cmd_no = -1
-        for cmd in service["post_start"]:
-            cmd_no = cmd_no + 1
-            current_step += 1
-            queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Post Start: " + cmd))
-            try:
-                container.exec_run(
-                    cmd=["/bin/sh", "-c", cmd],
-                    detach=False,
-                    tty=True,
-                    user=str(getuid()) if service['run_as_current_user'] else None
-                )
-            except (APIError, ContainerError) as err:
-                queue.end_with_error(ResultError("ERROR running post start command '" + cmd + "'.", cause=err))
-                stop(project_name, service["$name"], client)
-                return
+        if not quick:
+            for cmd in service["post_start"]:
+                cmd_no = cmd_no + 1
+                current_step += 1
+                queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Post Start: " + cmd))
+                try:
+                    container.exec_run(
+                        cmd=["/bin/sh", "-c", cmd],
+                        detach=False,
+                        tty=True,
+                        user=str(getuid()) if service['run_as_current_user'] else None
+                    )
+                except (APIError, ContainerError) as err:
+                    queue.end_with_error(ResultError("ERROR running post start command '" + cmd + "'.", cause=err))
+                    stop(project_name, service["$name"], client)
+                    return
 
         # 6. Done!
         current_step += 1

@@ -22,10 +22,20 @@ import threading
 DEFAULT_EXEC_FG_CMD = "if command -v bash >> /dev/null; then bash; else sh; fi"
 
 
-def exec_fg(client, project: Project, service_name: str, cmd: str, cols=None, lines=None, root=False) -> None:
+def exec_fg(client,
+            project: Project,
+            service_name: str,
+            cmd: str,
+            cols=None,
+            lines=None,
+            root=False,
+            environment_variables=None) -> int:
     """Open an interactive shell to one running service container"""
     if service_name not in project["app"]["services"]:
         raise ExecError("Service not found.")
+
+    if environment_variables is None:
+        environment_variables = {}
 
     container_name = get_service_container_name(project["name"], service_name)
     service_obj = project["app"]["services"][service_name]
@@ -46,11 +56,14 @@ def exec_fg(client, project: Project, service_name: str, cmd: str, cols=None, li
         if cols and lines:
             # Add COLUMNS and LINES env variables
             shell += ['-e', 'COLUMNS=' + str(cols), '-e', 'LINES=' + str(lines)]
+        for key, value in environment_variables.items():
+            shell += ['-e', key + '=' + value]
         if "src" in service_obj["roles"]:
             # Service has source code, set workdir in container to current workdir
             shell += ["-w", CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project)]
         shell += [container_name, "sh", "-c", cmd]
-        pty.spawn(shell, win_repeat_argv0=True)
+
+        return _spawn(shell)
 
     except NotFound:
         raise ExecError('The service is not running. Try starting it first.')
@@ -78,6 +91,13 @@ def cmd_fg(client, project: Project, command_name: str, arguments: List[str]) ->
     command_obj = project["app"]["commands"][command_name]
 
     return fg(client, project, container_name, command_obj, arguments)
+
+
+def cmd_in_service_fg(client, project: Project, command_name: str, service_name: str, arguments: List[str]) -> int:
+    command_obj: 'Command' = project["app"]["commands"][command_name]
+    command_string = (command_obj["command"] + " " + " ".join(f'"{w}"' for w in arguments)).rstrip()
+    return exec_fg(client, project, service_name, command_string,
+                   environment_variables=command_obj.collect_environment())
 
 
 def fg(client, project: Project, container_name: str, exec_object: Union[Command, Service], arguments: List[str]) -> int:
@@ -129,8 +149,12 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
     # so that's the best we can do
     AddNetLinks(container_name, client, project["links"]).start()
 
+    return _spawn(builder.build_docker_cli())
+
+
+def _spawn(shell: List[str]) -> int:
     # XXX: Needs to be shifted by 1 byte because the return value of os.waitpid is shifted for some reason???
-    return pty.spawn(builder.build_docker_cli(), win_repeat_argv0=True) >> 8
+    return pty.spawn(shell, win_repeat_argv0=True) >> 8
 
 
 def _wait_until_container_exists(client, container_name):

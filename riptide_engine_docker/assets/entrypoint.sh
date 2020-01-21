@@ -33,6 +33,9 @@
 #   Contains the original entrypoint. Can be empty. Will be run and get the command passed
 #   (if RIPTIDE__DOCKER_DONT_RUN_CMD is not set)
 #
+# RIPTIDE__DOCKER_NAMED_VOLUMES:
+#   List of named volume mount paths (separated by :). These will be chowned to RIPTIDE__DOCKER_USER_RUN:RIPTIDE__DOCKER_GROUP.
+#
 # RIPTIDE__DOCKER_CMD_LOGGING_*:
 #   Command logging.
 #   All the vlaues of these environment variables will be started and their stdout redirected to /cmd_logs/*.
@@ -40,6 +43,13 @@
 # RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES:
 #   List of hostnames to add to the /etc/hosts. These hostnames must be routable to the host
 #   system.
+#
+# RIPTIDE__DOCKER_OVERLAY_TARGETS:
+#   Paths at these locations (separated by :), will be mounted via an overlayfs. Paths must be absolute.
+#   To do this, the target is first bind-mounted to /riptide_overlayfs/lower and then an overlayfs is created
+#   at the position in src with the lower part being the bind mount created in /riptide_overlayfs/lower.
+#   Upper and workdirs are created in /riptide_overlayfs/tmp/upper and /riptide_overlayfs/tmp/work respecitively.
+#   upper and work are kept in memory using tmpfs. Regular tmpfs restrictions apply.
 #
 # RIPTIDE__DOCKER_ON_LINUX:
 #   "1": Docker is running natively on Linux
@@ -106,6 +116,56 @@ if [ ! -z "$RIPTIDE__DOCKER_USER" ]; then
     fi
 fi
 
+# Chown all provided volume paths
+OLD_IFS=$IFS
+IFS=':'
+for p in $RIPTIDE__DOCKER_NAMED_VOLUMES; do
+  if [ ! -z "$RIPTIDE__DOCKER_GROUP" ]; then
+    chown $RIPTIDE__DOCKER_USER_RUN:$RIPTIDE__DOCKER_GROUP $p
+  else
+    chown $RIPTIDE__DOCKER_USER_RUN $p
+  fi
+done
+IFS=$OLD_IFS
+
+# Apply overlayfs settings
+apply_overlayfs() {
+    mkdir /riptide_overlayfs
+    mkdir /riptide_overlayfs/tmp
+    mkdir /riptide_overlayfs/tmp/upper
+    mkdir /riptide_overlayfs/tmp/work
+    mount -t tmpfs none "/riptide_overlayfs/tmp"
+    OLD_IFS=$IFS
+    IFS=':'
+    for p in $1; do
+        if [ -d "$p" ]; then
+            l="/riptide_overlayfs/lower$p"
+            u="/riptide_overlayfs/tmp/upper$p"
+            w="/riptide_overlayfs/tmp/work$p"
+            mkdir -p "$l"
+            mkdir -p "$u"
+            mkdir -p "$w"
+            mount --bind "$p" "$l"
+            mount -t overlay overlay -o "lowerdir=$l,upperdir=$u,workdir=$w" $p
+            # Because of the weird osxfs under Mac and propably also under Windows,
+            # we have to properly set all permissions for these subdirectories
+            RECURSIVE_FLAG=""
+            if [ ! "$RIPTIDE__DOCKER_ON_LINUX" = "1" ]; then
+              RECURSIVE_FLAG="-R"
+            fi
+            if [ ! -z "$RIPTIDE__DOCKER_GROUP" ]; then
+              chown $RIPTIDE__DOCKER_USER_RUN:$RIPTIDE__DOCKER_GROUP $p $RECURSIVE_FLAG
+            else
+              chown $RIPTIDE__DOCKER_USER_RUN $p $RECURSIVE_FLAG
+            fi
+        fi
+    done
+    IFS=$OLD_IFS
+}
+if [ ! -z "$RIPTIDE__DOCKER_OVERLAY_TARGETS" ]; then
+    apply_overlayfs $RIPTIDE__DOCKER_OVERLAY_TARGETS
+fi
+
 # PREPARE SU COMMAND AND ENV
 if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then
     USERNAME=$(getent passwd "$RIPTIDE__DOCKER_USER_RUN" | cut -d: -f1)
@@ -116,6 +176,7 @@ fi
 
 # host.riptide.internal is supposed to be routable to the host.
 if [ "$RIPTIDE__DOCKER_ON_LINUX" = "1" ]; then
+    # TODO Resolve IP dynamically
     POSSIBLE_IP="172.17.0.1"
 else
     LOOP=0
