@@ -1394,6 +1394,7 @@ class ContainerBuilderTest(unittest.TestCase):
         # Test API build
         self.expected_api_base.update({
             'cap_add': ['SYS_ADMIN'],
+            'security_opt': ['apparmor:unconfined'],
             'user': 0,
             'entrypoint': [ENTRYPOINT_CONTAINER_PATH],
             'mounts': [
@@ -1426,6 +1427,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
             '--cap-add=SYS_ADMIN',
+            '--security-opt', 'apparmor:unconfined',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()

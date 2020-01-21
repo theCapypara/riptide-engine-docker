@@ -66,8 +66,8 @@ class ContainerBuilder:
         self.allow_full_memlock = False
         self.cap_sys_admin = False
 
-        on_linux = platform.system().lower().startswith('linux')
-        self.set_env(EENV_ON_LINUX, "1" if on_linux else "0")
+        self.on_linux = platform.system().lower().startswith('linux')
+        self.set_env(EENV_ON_LINUX, "1" if self.on_linux else "0")
 
         self.named_volumes_in_cnt = []
 
@@ -296,6 +296,9 @@ class ContainerBuilder:
             args['ulimits'] = [Ulimit(name='memlock', soft=-1, hard=-1)]
         if self.cap_sys_admin:
             args['cap_add'] = ['SYS_ADMIN']
+            # Ubuntu and possibly other Distros:
+            if self.on_linux:
+                args['security_opt'] = ['apparmor:unconfined']
 
         args['environment'] = self.env.copy()
 
@@ -360,6 +363,9 @@ class ContainerBuilder:
 
         if self.cap_sys_admin:
             shell += ['--cap-add=SYS_ADMIN']
+            # On Ubuntu and possibly other distros:
+            if self.on_linux:
+                shell += ['--security-opt', 'apparmor:unconfined']
 
         command = self.command
         if command is None:
