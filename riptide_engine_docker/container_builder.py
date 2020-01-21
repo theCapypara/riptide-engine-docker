@@ -188,13 +188,14 @@ class ContainerBuilder:
         You need to call service_add_main_port separately.
         """
         perf_settings = service.get_project().parent()['performance']
+        project_absolute_unimportant_paths = []
+        if perf_settings['dont_sync_unimportant_src'] and 'unimportant_paths' in service.parent():
+            project_absolute_unimportant_paths = [_make_abs_to_src(p) for p in service.parent()['unimportant_paths']]
         self._init_common(
             service,
             image_config,
             perf_settings['dont_sync_named_volumes_with_host'],
-            [
-                _make_abs_to_src(p) for p in service.parent()['unimportant_paths']
-            ] if perf_settings['dont_sync_unimportant_src'] else []
+            project_absolute_unimportant_paths
         )
         # Collect labels
         labels = service_collect_labels(service, service.get_project()["name"])
@@ -236,13 +237,14 @@ class ContainerBuilder:
         Initialize some data of this builder with the given command object.
         """
         perf_settings = command.get_project().parent()['performance']
+        project_absolute_unimportant_paths = []
+        if perf_settings['dont_sync_unimportant_src'] and 'unimportant_paths' in command.parent():
+            project_absolute_unimportant_paths = [_make_abs_to_src(p) for p in command.parent()['unimportant_paths']]
         self._init_common(
             command,
             image_config,
             perf_settings['dont_sync_named_volumes_with_host'],
-            [
-                _make_abs_to_src(p) for p in command.parent()['unimportant_paths']
-            ] if perf_settings['dont_sync_unimportant_src'] else []
+            project_absolute_unimportant_paths
         )
         return self
 
