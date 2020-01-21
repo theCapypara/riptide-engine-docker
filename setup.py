@@ -18,7 +18,7 @@ setup(
     long_description_content_type='text/x-rst',
     url='https://github.com/Parakoopa/riptide-engine-docker/',
     install_requires=[
-        'riptide-lib >= 0.5, < 0.6',
+        'riptide-lib >= 0.5rc1, < 0.6',
         'docker >= 4.1'
     ],
     classifiers=[
