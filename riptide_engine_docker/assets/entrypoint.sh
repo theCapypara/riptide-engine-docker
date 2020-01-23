@@ -60,6 +60,8 @@ then
     # redirect stdout and stderr to files
     exec >>/riptide_stdout
     exec 2>>/riptide_stderr
+    chmod 666 /riptide_stdout
+    chmod 666 /riptide_stderr
 
     echo="SERVICE RESTART - $(date) - Thank you for using Riptide!"
     echo $echo
