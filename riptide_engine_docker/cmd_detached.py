@@ -45,8 +45,9 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
         container = client.containers.create(**builder.build_docker_api())
         add_network_links(client, container, None, project["links"])
         container.start()
+        exit_code = container.wait()
         output = container.logs()
-        return 0, output
+        return exit_code['StatusCode'], output
     except ContainerError as err:
         return err.exit_status, err.stderr
 
