@@ -1,3 +1,4 @@
+__version__ = '0.5.2'
 from glob import glob
 from setuptools import setup, find_packages
 
@@ -10,7 +11,7 @@ with open(path.join(this_directory, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='riptide-engine_docker',
-    version='0.5.2',
+    version=__version__,
     packages=find_packages(),
     package_data={'riptide_engine_docker': ['assets/*']},
     description='Tool to manage development environments for web applications using containers - Docker Implementation',
