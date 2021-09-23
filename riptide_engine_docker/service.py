@@ -11,7 +11,8 @@ from riptide.config.document.config import Config
 from riptide.config.document.service import Service
 
 from riptide_engine_docker.container_builder import get_network_name, get_service_container_name, \
-    ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, EENV_NO_STDOUT_REDIRECT, EENV_ORIGINAL_ENTRYPOINT
+    ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, EENV_NO_STDOUT_REDIRECT, EENV_ORIGINAL_ENTRYPOINT, \
+    EENV_RUN_MAIN_CMD_AS_USER
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getuid
 from riptide_engine_docker.network import add_network_links
@@ -129,6 +130,11 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                         'ports': None,
                         'labels': {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
                     })
+                    if service["run_pre_start_as_current_user"] and EENV_RUN_MAIN_CMD_AS_USER not in pre_start_config['environment']:
+                        # Run with the current system user
+                        pre_start_config['environment'][EENV_RUN_MAIN_CMD_AS_USER] = "yes"
+                    elif not service["run_pre_start_as_current_user"] and EENV_RUN_MAIN_CMD_AS_USER in pre_start_config['environment']:
+                        del pre_start_config['environment'][EENV_RUN_MAIN_CMD_AS_USER]
                     pre_start_config['environment'][EENV_NO_STDOUT_REDIRECT] = '1'
                     pre_start_config['environment'][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
 
@@ -192,7 +198,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                         cmd=["/bin/sh", "-c", cmd],
                         detach=False,
                         tty=True,
-                        user=str(getuid()) if service['run_as_current_user'] else None
+                        user=str(getuid()) if service['run_post_start_as_current_user'] else None
                     )
                 except (APIError, ContainerError) as err:
                     queue.end_with_error(ResultError("ERROR running post start command '" + cmd + "'.", cause=err))
