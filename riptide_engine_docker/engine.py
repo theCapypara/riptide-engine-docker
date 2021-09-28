@@ -3,9 +3,9 @@ import asyncio
 import docker
 import json
 from json import JSONDecodeError
-from typing import Tuple, Dict, Union, List
+from typing import Tuple, Dict, Union, List, Optional
 
-from docker.errors import APIError
+from docker.errors import APIError, ImageNotFound
 
 from riptide.config.document.command import Command
 from riptide.config.document.config import Config
@@ -220,3 +220,13 @@ class DockerEngine(AbstractEngine):
                 update_func(f"{line_reset}    Warning: Image not found in repository.\n")
             else:
                 raise
+
+    def get_service_or_command_image_labels(self, obj: Union['Service', 'Command']) -> Optional[Dict[str, str]]:
+        if 'image' not in obj:
+            return None
+        image_name = obj['image']
+        try:
+            image = self.client.images.get(image_name)
+        except ImageNotFound:
+            return None
+        return image.labels

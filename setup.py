@@ -1,4 +1,4 @@
-__version__ = '0.5.5'
+__version__ = '0.6.0'
 from glob import glob
 from setuptools import setup, find_packages
 
@@ -19,7 +19,7 @@ setup(
     long_description_content_type='text/x-rst',
     url='https://github.com/Parakoopa/riptide-engine-docker/',
     install_requires=[
-        'riptide-lib >= 0.5, < 0.6',
+        'riptide-lib >= 0.6, < 0.7',
         'docker >= 4.1'
     ],
     classifiers=[
