@@ -12,9 +12,9 @@ from riptide.config.document.service import Service
 
 from riptide_engine_docker.container_builder import get_network_name, get_service_container_name, \
     ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, EENV_NO_STDOUT_REDIRECT, EENV_ORIGINAL_ENTRYPOINT, \
-    EENV_RUN_MAIN_CMD_AS_USER
+    EENV_RUN_MAIN_CMD_AS_USER, EENV_USER, EENV_GROUP
 from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
-from riptide.lib.cross_platform.cpuser import getuid
+from riptide.lib.cross_platform.cpuser import getuid, getgid
 from riptide_engine_docker.network import add_network_links
 
 start_lock = threading.Lock()
@@ -133,6 +133,8 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
                     if service["run_pre_start_as_current_user"] and EENV_RUN_MAIN_CMD_AS_USER not in pre_start_config['environment']:
                         # Run with the current system user
                         pre_start_config['environment'][EENV_RUN_MAIN_CMD_AS_USER] = "yes"
+                        pre_start_config['environment'][EENV_USER] = str(getuid())
+                        pre_start_config['environment'][EENV_GROUP] = str(getgid())
                     elif not service["run_pre_start_as_current_user"] and EENV_RUN_MAIN_CMD_AS_USER in pre_start_config['environment']:
                         del pre_start_config['environment'][EENV_RUN_MAIN_CMD_AS_USER]
                     pre_start_config['environment'][EENV_NO_STDOUT_REDIRECT] = '1'

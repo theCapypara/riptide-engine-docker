@@ -1,4 +1,4 @@
-__version__ = '0.6.0'
+__version__ = '0.6.2'
 from glob import glob
 from setuptools import setup, find_packages
 
@@ -31,6 +31,8 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
     ],
     entry_points='''
         [riptide.engine]
