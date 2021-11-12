@@ -216,7 +216,7 @@ class DockerEngine(AbstractEngine):
                 update_func(f"{line_reset}    {update}")
             update_func(f"{line_reset}    Done!\n")
         except APIError as ex:
-            if "404 Client Error: Not Found " in str(ex):
+            if "404 Client Error" in str(ex):
                 update_func(f"{line_reset}    Warning: Image not found in repository.\n")
             else:
                 raise
