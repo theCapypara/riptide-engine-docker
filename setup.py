@@ -17,7 +17,7 @@ setup(
     description='Tool to manage development environments for web applications using containers - Docker Implementation',
     long_description=long_description,
     long_description_content_type='text/x-rst',
-    url='https://github.com/Parakoopa/riptide-engine-docker/',
+    url='https://github.com/theCapypara/riptide-engine-docker/',
     install_requires=[
         'riptide-lib >= 0.7, < 0.8',
         'docker >= 4.1'
