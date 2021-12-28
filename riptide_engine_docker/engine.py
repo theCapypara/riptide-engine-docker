@@ -28,7 +28,8 @@ class DockerEngine(AbstractEngine):
     def start_project(self,
                       project: Project,
                       services: List[str],
-                      quick=False) -> MultiResultQueue[StartStopResultStep]:
+                      quick=False,
+                      command_group: str = "default") -> MultiResultQueue[StartStopResultStep]:
         with riptide_start_project_ctx(project):
             # Start network
             network.start(self.client, project["name"])
@@ -48,6 +49,7 @@ class DockerEngine(AbstractEngine):
 
                         project["name"],
                         project["app"]["services"][service_name],
+                        command_group,
                         self.client,
                         queue,
                         quick
@@ -133,12 +135,13 @@ class DockerEngine(AbstractEngine):
                    project: 'Project',
                    service_name: str,
                    arguments: List[str],
-                   unimportant_paths_unsynced=False) -> None:
+                   unimportant_paths_unsynced=False,
+                   command_group: str = "default") -> None:
         # Start network
         network.start(self.client, project["name"])
 
         with riptide_start_project_ctx(project):
-            service_fg(self.client, project, service_name, arguments)
+            service_fg(self.client, project, service_name, command_group, arguments)
 
     def exec(self, project: Project, service_name: str, cols=None, lines=None, root=False) -> None:
         exec_fg(self.client, project, service_name, DEFAULT_EXEC_FG_CMD, cols, lines, root)
