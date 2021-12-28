@@ -20,7 +20,7 @@ from riptide_engine_docker.network import add_network_links
 start_lock = threading.Lock()
 
 
-def start(project_name: str, service: Service, client: DockerClient, queue: ResultQueue, quick=False):
+def start(project_name: str, service: Service, command_group: str, client: DockerClient, queue: ResultQueue, quick=False):
     """
     Starts the given service by starting the container (if not already started).
 
@@ -32,6 +32,7 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
     :param client:          Docker Client
     :param project_name:    Name of the project to start
     :param service:         Service object defining the service
+    :param command_group:   Comamnd group to use for the service
     :param queue:           ResultQueue to update, or None
     :param quick:           If True: pre_start and post_start commands are skipped.
     """
@@ -89,10 +90,10 @@ def start(project_name: str, service: Service, client: DockerClient, queue: Resu
         # 2.5. Prepare container
         try:
             image_config = client.api.inspect_image(service["image"])["Config"]
-            builder = ContainerBuilder(
-                service["image"],
-                service["command"] if "command" in service else image_config["Cmd"]
-            )
+            command = image_config["Cmd"]
+            if "command" in service:
+                command = service.get_command(command_group)
+            builder = ContainerBuilder(service["image"], command)
 
             builder.set_name(name)
             builder.init_from_service(service, image_config)

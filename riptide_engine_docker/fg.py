@@ -2,7 +2,7 @@ import sys
 from time import sleep
 
 import riptide.lib.cross_platform.cppty as pty
-from typing import List, Union
+from typing import List, Union, Optional
 
 from docker.errors import NotFound, APIError, ImageNotFound
 
@@ -71,7 +71,7 @@ def exec_fg(client,
         raise ExecError('Error communicating with the Docker Engine.') from err
 
 
-def service_fg(client, project: Project, service_name: str, arguments: List[str]) -> None:
+def service_fg(client, project: Project, service_name: str, command_group: str, arguments: List[str]) -> None:
     """Run a service in foreground"""
     if service_name not in project["app"]["services"]:
         raise ExecError("Service not found.")
@@ -79,7 +79,7 @@ def service_fg(client, project: Project, service_name: str, arguments: List[str]
     container_name = get_service_container_name(project['name'], service_name)
     command_obj = project["app"]["services"][service_name]
 
-    fg(client, project, container_name, command_obj, arguments)
+    fg(client, project, container_name, command_obj, arguments, command_group)
 
 
 def cmd_fg(client, project: Project, command_name: str, arguments: List[str]) -> int:
@@ -90,7 +90,7 @@ def cmd_fg(client, project: Project, command_name: str, arguments: List[str]) ->
     container_name = get_cmd_container_name(project['name'], command_name)
     command_obj = project["app"]["commands"][command_name]
 
-    return fg(client, project, container_name, command_obj, arguments)
+    return fg(client, project, container_name, command_obj, arguments, None)
 
 
 def cmd_in_service_fg(client, project: Project, command_name: str, service_name: str, arguments: List[str]) -> int:
@@ -100,7 +100,7 @@ def cmd_in_service_fg(client, project: Project, command_name: str, service_name:
                    environment_variables=command_obj.collect_environment())
 
 
-def fg(client, project: Project, container_name: str, exec_object: Union[Command, Service], arguments: List[str]) -> int:
+def fg(client, project: Project, container_name: str, exec_object: Union[Command, Service], arguments: List[str], command_group: Optional[str]) -> int:
     # TODO: Piping | <
     # TODO: Not only /src into container but everything
 
@@ -122,10 +122,14 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
             print('    ' + str(ex), file=sys.stderr)
             return
 
-    builder = ContainerBuilder(
-        exec_object["image"],
-        exec_object["command"] if "command" in exec_object else image_config["Cmd"]
-    )
+    command = image_config["Cmd"]
+    if "command" in exec_object:
+        if isinstance(exec_object, Service):
+            command = exec_object.get_command(command_group)
+        else:
+            command = exec_object["command"]
+
+    builder = ContainerBuilder(exec_object["image"], command)
 
     builder.set_workdir(CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project))
     builder.set_name(container_name)
