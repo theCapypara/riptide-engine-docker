@@ -32,6 +32,7 @@ def rm(engine, path, project: 'Project'):
         }}
     })
     command.validate()
+    command.freeze()
     (exit_code, output) = engine.cmd_detached(project, command, run_as_root=True)
     if exit_code != 0:
         raise ExecError(f"Error removing the path ({str(exit_code)}) {path}: {output}")
@@ -62,6 +63,7 @@ def copy(engine, fromm, to, project: 'Project'):
         }}
     })
     command.validate()
+    command.freeze()
     (exit_code, output) = engine.cmd_detached(project, command, run_as_root=True)
     if exit_code != 0:
         raise ExecError(f"Error copying the directory ({str(exit_code)}) {fromm} -> {to}: {output}")
