@@ -1,5 +1,6 @@
 from typing import List, Union
 
+import docker.errors
 from docker import DockerClient
 from docker.errors import NotFound
 from docker.models.containers import Container
@@ -26,7 +27,14 @@ def collect_names_for_links(client: DockerClient, links: List[str]) -> List[str]
 def add_network_links(client: DockerClient, container: Container, name: Union[str, None], links: List[str]):
     """Adds a project to all container networks specified in the links. Links is a list of Riptide projects."""
     for network_name in collect_names_for_links(client, links):
-        if name is not None:
-            client.networks.get(network_name).connect(container, aliases=[name])
-        else:
-            client.networks.get(network_name).connect(container)
+        try:
+            if name is not None:
+                client.networks.get(network_name).connect(container, aliases=[name])
+            else:
+                client.networks.get(network_name).connect(container)
+        except docker.errors.APIError as err:
+            if err.status_code == 403 and "already exists" in err.explanation:
+                # This can happen sometimes.
+                pass
+            else:
+                raise
