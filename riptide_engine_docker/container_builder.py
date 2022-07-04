@@ -346,12 +346,13 @@ class ContainerBuilder:
             shell += ['-p', str(host) + ':' + str(container)]
 
         # Mac: Add delegated
-        mac_add = ':delegated' if platform.system().lower().startswith('mac') else ''
+        mac_add = ',consistency=delegated' if platform.system().lower().startswith('mac') else ''
         for mount in self.mounts.values():
             mode = 'ro' if mount['ReadOnly'] else 'rw'
             if mount["Type"] == "bind":
-                shell += ['-v',
-                          mount['Source'] + ':' + mount['Target'] + ':' + mode + mac_add]
+                # --mount type=bind,src=/tmp/test,comma,dst=/tmp/test
+                shell += ['--mount',
+                          f'type=bind,dst={mount["Target"]},src={mount["Source"]},ro={"0" if mode == "rw" else "1"}' + mac_add]
             else:
                 shell += ['--mount',
                           f'type=volume,target={mount["Target"]},src={mount["Source"]},ro={"0" if mode == "rw" else "1"},'
