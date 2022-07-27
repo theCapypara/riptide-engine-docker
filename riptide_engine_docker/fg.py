@@ -135,6 +135,9 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
     builder.set_name(container_name)
     builder.set_network(get_network_name(project["name"]))
 
+    if "use_host_network" in exec_object and exec_object["use_host_network"]:
+        builder.set_use_host_network(True)
+
     builder.set_env(EENV_NO_STDOUT_REDIRECT, "yes")
     builder.set_args(arguments)
 
