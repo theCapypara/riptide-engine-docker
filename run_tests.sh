@@ -23,7 +23,7 @@ mkdir -p /tmp/riptide-docker-tox
 curl "https://raw.githubusercontent.com/theCapypara/riptide-lib/master/test_assets/riptide-docker-tox/Dockerfile" > /tmp/riptide-docker-tox/Dockerfile
 curl "https://raw.githubusercontent.com/theCapypara/riptide-lib/master/test_assets/riptide-docker-tox/entrypoint.sh" > /tmp/riptide-docker-tox/entrypoint.sh
 chmod +x /tmp/riptide-docker-tox/entrypoint.sh
-docker build -t riptide_docker_tox /tmp/riptide-docker-tox
+docker buildx build -t riptide_docker_tox /tmp/riptide-docker-tox
 
 
 # 2. Run the image...
