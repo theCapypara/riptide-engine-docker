@@ -6,7 +6,7 @@ from unittest import mock
 
 from unittest.mock import Mock, MagicMock
 
-from configcrunch.tests.test_utils import YamlConfigDocumentStub
+from configcrunch import YamlConfigDocumentStub
 from riptide.tests.stubs import ProjectStub
 from riptide_engine_docker.container_builder import ContainerBuilder, ENTRYPOINT_SH, ENTRYPOINT_CONTAINER_PATH, \
     EENV_ORIGINAL_ENTRYPOINT, EENV_DONT_RUN_CMD, EENV_COMMAND_LOG_PREFIX, EENV_USER, EENV_GROUP, \
