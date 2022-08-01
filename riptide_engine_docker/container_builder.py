@@ -446,7 +446,8 @@ def service_collect_logging_commands(service: Service) -> dict:
     """Collect logging commands environment variables for this service"""
     environment = {}
     if "logging" in service and "commands" in service["logging"]:
-        for cmdname, command in service["logging"]["commands"].items():
+        commands = service["logging"]["commands"]
+        for cmdname, command in {k: commands[k] for k in sorted(commands)}.items():
             environment[EENV_COMMAND_LOG_PREFIX + cmdname] = command
     return environment
 
