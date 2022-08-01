@@ -6,7 +6,7 @@ from unittest import mock
 
 from unittest.mock import Mock, MagicMock
 
-from configcrunch.tests.test_utils import YamlConfigDocumentStub
+from riptide.tests.configcrunch_test_utils import YamlConfigDocumentStub
 from riptide.tests.stubs import ProjectStub
 from riptide_engine_docker.container_builder import ContainerBuilder, ENTRYPOINT_SH, ENTRYPOINT_CONTAINER_PATH, \
     EENV_ORIGINAL_ENTRYPOINT, EENV_DONT_RUN_CMD, EENV_COMMAND_LOG_PREFIX, EENV_USER, EENV_GROUP, \
@@ -182,8 +182,8 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
-            '-v', '/host_path:/container_path:rw',
-            '-v', '/host_path2:/container_path2:ro',
+            '--mount', 'type=bind,dst=/container_path,src=/host_path,ro=0',
+            '--mount', 'type=bind,dst=/container_path2,src=/host_path2,ro=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -220,8 +220,8 @@ class ContainerBuilderTest(unittest.TestCase):
         expected_cli = self.expected_cli_base + [
             '-e', EENV_ON_LINUX + '=1',
             '--label', 'riptide=1',
-            '-v', '/host_path:/container_path:rw:delegated',
-            '-v', '/host_path2:/container_path2:ro:delegated',
+            '--mount', 'type=bind,dst=/container_path,src=/host_path,ro=0,consistency=delegated',
+            '--mount', 'type=bind,dst=/container_path2,src=/host_path2,ro=1,consistency=delegated',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -468,7 +468,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=cmd "arg1" "arg2 with space"',
             '--label', 'riptide=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -515,7 +515,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=' + expected_sh + ep_value,
             '-e', EENV_DONT_RUN_CMD + '=true',
             '--label', 'riptide=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -558,7 +558,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_ON_LINUX + '=1',
             '-e', EENV_ORIGINAL_ENTRYPOINT + '=',
             '--label', 'riptide=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -573,7 +573,7 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_service_current_user(self, *args, **kwargs):
         self.maxDiff = None
 
-        service_stub = YamlConfigDocumentStub({
+        service_stub = YamlConfigDocumentStub.make({
             '$name': 'SERVICENAME',
             'roles': [],
             'run_as_current_user': True,
@@ -585,12 +585,15 @@ class ContainerBuilderTest(unittest.TestCase):
                 }
             }
         })
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 'dont_sync_named_volumes_with_host': False,
                 'dont_sync_unimportant_src': False
             }
         })
+        project_stub = ProjectStub.make({
+            'name': 'PROJECTNAME'
+        }, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={
             1234: 5678,
@@ -604,9 +607,10 @@ class ContainerBuilderTest(unittest.TestCase):
             'key1': 'value1',
             'key2': 'value2'
         })
-        service_stub.get_project = MagicMock(return_value=ProjectStub({
-            'name': 'PROJECTNAME'
-        }, parent=config_stub))
+        service_stub.get_project = MagicMock(return_value=project_stub)
+        config_stub.freeze()
+        project_stub.freeze()
+        service_stub.freeze()
 
         image_config_mock = {'Entrypoint': '', 'User': '12345'}
 
@@ -677,8 +681,8 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', 'key1=value1',
             '-e', 'key2=value2',
             '-e', EENV_OVERLAY_TARGETS + '=',
-            '-e', EENV_COMMAND_LOG_PREFIX + 'name1=command1',
             '-e', EENV_COMMAND_LOG_PREFIX + 'name2=command2',
+            '-e', EENV_COMMAND_LOG_PREFIX + 'name1=command1',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '-e', EENV_RUN_MAIN_CMD_AS_USER + '=yes',
@@ -688,9 +692,9 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', RIPTIDE_DOCKER_LABEL_MAIN + '=0',
             '-p', '5678:1234',
             '-p', '5432:9876',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
-            '-v', 'host1:bind1:ro',
-            '-v', 'host2:bind2:rw',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
+            '--mount', f'type=bind,dst=bind1,src=host1,ro=1',
+            '--mount', f'type=bind,dst=bind2,src=host2,ro=0',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -705,25 +709,29 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_service_current_user_main_service(self, *args, **kwargs):
         self.maxDiff = None
 
-        service_stub = YamlConfigDocumentStub({
+        service_stub = YamlConfigDocumentStub.make({
             '$name': 'SERVICENAME',
             'roles': ['main'],
             'run_as_current_user': True,
             'dont_create_user': False
         })
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 'dont_sync_named_volumes_with_host': False,
                 'dont_sync_unimportant_src': False
             }
         })
+        project_stub = ProjectStub.make({
+            'name': 'PROJECTNAME'
+        }, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
         service_stub.collect_environment = MagicMock(return_value={})
-        service_stub.get_project = MagicMock(return_value=ProjectStub({
-            'name': 'PROJECTNAME'
-        }, parent=config_stub))
+        service_stub.get_project = MagicMock(return_value=project_stub)
+        config_stub.freeze()
+        project_stub.freeze()
+        service_stub.freeze()
 
         image_config_mock = {'Entrypoint': '', 'User': '12345'}
 
@@ -777,7 +785,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
             '--label', RIPTIDE_DOCKER_LABEL_MAIN + '=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -792,27 +800,32 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_service_no_current_user_but_set(self, *args, **kwargs):
         self.maxDiff = None
 
-        service_stub = YamlConfigDocumentStub({
+        service_stub = YamlConfigDocumentStub.make({
             '$name': 'SERVICENAME',
             'roles': ['main'],
             'run_as_current_user': False,
             'dont_create_user': False
         })
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 'dont_sync_named_volumes_with_host': False,
                 'dont_sync_unimportant_src': False
             }
         })
+        project_stub = ProjectStub.make({
+            'name': 'PROJECTNAME'
+        }, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
         service_stub.collect_environment = MagicMock(return_value={})
-        service_stub.get_project = MagicMock(return_value=ProjectStub({
-            'name': 'PROJECTNAME'
-        }, parent=config_stub))
+        service_stub.get_project = MagicMock(return_value=project_stub)
 
         image_config_mock = {'Entrypoint': '', 'User': '12345'}
+
+        config_stub.freeze()
+        project_stub.freeze()
+        service_stub.freeze()
 
         self.fix.init_from_service(service_stub, image_config_mock)
 
@@ -866,7 +879,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
             '--label', RIPTIDE_DOCKER_LABEL_MAIN + '=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -881,27 +894,32 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_service_no_current_user_root(self, *args, **kwargs):
         self.maxDiff = None
 
-        service_stub = YamlConfigDocumentStub({
+        service_stub = YamlConfigDocumentStub.make({
             '$name': 'SERVICENAME',
             'roles': ['main'],
             'run_as_current_user': False,
             'dont_create_user': False
         })
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 'dont_sync_named_volumes_with_host': False,
                 'dont_sync_unimportant_src': False
             }
         })
+        project_stub = ProjectStub.make({
+            'name': 'PROJECTNAME'
+        }, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
         service_stub.collect_environment = MagicMock(return_value={})
-        service_stub.get_project = MagicMock(return_value=ProjectStub({
-            'name': 'PROJECTNAME'
-        }, parent=config_stub))
+        service_stub.get_project = MagicMock(return_value=project_stub)
 
         image_config_mock = {'Entrypoint': '', 'User': ''}
+
+        config_stub.freeze()
+        project_stub.freeze()
+        service_stub.freeze()
 
         self.fix.init_from_service(service_stub, image_config_mock)
 
@@ -951,7 +969,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
             '--label', RIPTIDE_DOCKER_LABEL_MAIN + '=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -966,27 +984,32 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_service_no_current_user_dont_create(self, *args, **kwargs):
         self.maxDiff = None
 
-        service_stub = YamlConfigDocumentStub({
+        service_stub = YamlConfigDocumentStub.make({
             '$name': 'SERVICENAME',
             'roles': ['main'],
             'run_as_current_user': False,
             'dont_create_user': True
         })
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 'dont_sync_named_volumes_with_host': False,
                 'dont_sync_unimportant_src': False
             }
         })
+        project_stub = ProjectStub.make({
+            'name': 'PROJECTNAME'
+        }, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
         service_stub.collect_environment = MagicMock(return_value={})
-        service_stub.get_project = MagicMock(return_value=ProjectStub({
-            'name': 'PROJECTNAME'
-        }, parent=config_stub))
+        service_stub.get_project = MagicMock(return_value=project_stub)
 
         image_config_mock = {'Entrypoint': '', 'User': ''}
+
+        config_stub.freeze()
+        project_stub.freeze()
+        service_stub.freeze()
 
         self.fix.init_from_service(service_stub, image_config_mock)
 
@@ -1032,7 +1055,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
             '--label', RIPTIDE_DOCKER_LABEL_MAIN + '=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -1047,19 +1070,22 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_service_named_volume_perf_options(self, *args, **kwargs):
         self.maxDiff = None
 
-        service_stub = YamlConfigDocumentStub({
+        service_stub = YamlConfigDocumentStub.make({
             '$name': 'SERVICENAME',
             'roles': [],
             'run_as_current_user': True,
             'dont_create_user': False
         })
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 # ENABLE FOR THIS TEST
                 'dont_sync_named_volumes_with_host': True,
                 'dont_sync_unimportant_src': False
             }
         })
+        project_stub = ProjectStub.make({
+            'name': 'PROJECTNAME'
+        }, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={
@@ -1067,11 +1093,13 @@ class ContainerBuilderTest(unittest.TestCase):
             'host2': {'bind': 'bind2', 'mode': 'rw'},
         })
         service_stub.collect_environment = MagicMock(return_value={})
-        service_stub.get_project = MagicMock(return_value=ProjectStub({
-            'name': 'PROJECTNAME'
-        }, parent=config_stub))
+        service_stub.get_project = MagicMock(return_value=project_stub)
 
         image_config_mock = {'Entrypoint': '', 'User': '12345'}
+
+        config_stub.freeze()
+        project_stub.freeze()
+        service_stub.freeze()
 
         self.fix.init_from_service(service_stub, image_config_mock)
 
@@ -1140,9 +1168,9 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
             '--label', RIPTIDE_DOCKER_LABEL_MAIN + '=0',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             '--mount', 'type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label=riptide=1',
-            '-v', 'host2:bind2:rw',
+            '--mount', f'type=bind,dst=bind2,src=host2,ro=0',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -1152,9 +1180,11 @@ class ContainerBuilderTest(unittest.TestCase):
                 return_value=9876)
     def test_service_add_main_port(self, find_open_port_starting_at_mock: Mock):
 
-        service_stub = YamlConfigDocumentStub({
+        service_stub = YamlConfigDocumentStub.make({
             'port': 4536
         })
+
+        service_stub.freeze()
 
         self.fix.service_add_main_port(service_stub)
 
@@ -1191,14 +1221,14 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_command(self, *args, **kwargs):
         self.maxDiff = None
 
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 'dont_sync_named_volumes_with_host': False,
                 'dont_sync_unimportant_src': False
             }
         })
-        project_stub = YamlConfigDocumentStub({}, parent=config_stub)
-        command_stub = YamlConfigDocumentStub({
+        project_stub = YamlConfigDocumentStub.make({}, parent=config_stub)
+        command_stub = YamlConfigDocumentStub.make({
             '$name': 'COMMANDNAME'
         })
         command_stub.get_project = MagicMock(return_value=project_stub)
@@ -1212,6 +1242,9 @@ class ContainerBuilderTest(unittest.TestCase):
         })
 
         image_config_mock = {'Entrypoint': '', 'User': '12345'}
+        config_stub.freeze()
+        project_stub.freeze()
+        command_stub.freeze()
 
         self.fix.init_from_command(command_stub, image_config_mock)
 
@@ -1266,9 +1299,9 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', 'key2=value2',
             '-e', EENV_OVERLAY_TARGETS + '=',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
-            '-v', 'host1:bind1:ro',
-            '-v', 'host2:bind2:rw',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
+            '--mount', f'type=bind,dst=bind1,src=host1,ro=1',
+            '--mount', f'type=bind,dst=bind2,src=host2,ro=0',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -1281,15 +1314,15 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_command_named_volume_perf_options(self, *args, **kwargs):
         self.maxDiff = None
 
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 # ENABLED FOR THIS TEST:
                 'dont_sync_named_volumes_with_host': True,
                 'dont_sync_unimportant_src': False
             }
         })
-        project_stub = YamlConfigDocumentStub({}, parent=config_stub)
-        command_stub = YamlConfigDocumentStub({
+        project_stub = YamlConfigDocumentStub.make({}, parent=config_stub)
+        command_stub = YamlConfigDocumentStub.make({
             '$name': 'COMMANDNAME'
         })
         command_stub.get_project = MagicMock(return_value=project_stub)
@@ -1299,6 +1332,9 @@ class ContainerBuilderTest(unittest.TestCase):
         })
         command_stub.collect_environment = MagicMock(return_value={})
         image_config_mock = {'Entrypoint': '', 'User': '12345'}
+        config_stub.freeze()
+        project_stub.freeze()
+        command_stub.freeze()
 
         self.fix.init_from_command(command_stub, image_config_mock)
 
@@ -1351,9 +1387,9 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_OVERLAY_TARGETS + '=',
             '-e', EENV_NAMED_VOLUMES + '=' + 'bind1',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             '--mount', 'type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label=riptide=1',
-            '-v', 'host2:bind2:rw',
+            '--mount', f'type=bind,dst=bind2,src=host2,ro=0',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -1366,20 +1402,20 @@ class ContainerBuilderTest(unittest.TestCase):
     def test_init_from_command_unimportant_paths(self, *args, **kwargs):
         self.maxDiff = None
 
-        config_stub = YamlConfigDocumentStub({
+        config_stub = YamlConfigDocumentStub.make({
             'performance': {
                 'dont_sync_named_volumes_with_host': False,
                 # ENABLED FOR THIS TEST:
                 'dont_sync_unimportant_src': True
             }
         })
-        project_stub = YamlConfigDocumentStub({}, parent=config_stub)
-        app_stub = YamlConfigDocumentStub({
+        project_stub = YamlConfigDocumentStub.make({}, parent=config_stub)
+        app_stub = YamlConfigDocumentStub.make({
             'unimportant_paths': [
                 'unimportant_1', 'unimportant_2/subpath'
             ]
         }, parent=project_stub)
-        command_stub = YamlConfigDocumentStub({
+        command_stub = YamlConfigDocumentStub.make({
             '$name': 'COMMANDNAME'
         })
         command_stub.get_project = MagicMock(return_value=project_stub)
@@ -1387,6 +1423,10 @@ class ContainerBuilderTest(unittest.TestCase):
         command_stub.collect_volumes = MagicMock(return_value={})
         command_stub.collect_environment = MagicMock(return_value={})
         image_config_mock = {'Entrypoint': '', 'User': '12345'}
+        config_stub.freeze()
+        project_stub.freeze()
+        command_stub.freeze()
+        app_stub.freeze()
 
         self.fix.init_from_command(command_stub, image_config_mock)
 
@@ -1425,7 +1465,7 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', EENV_HOST_SYSTEM_HOSTNAMES + '=' + ' '.join(GET_LOCALHOSTS_HOSTS_RETURN),
             '-e', EENV_OVERLAY_TARGETS + '=/src/unimportant_1:/src/unimportant_2/subpath',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
-            '-v', expected_entrypoint_host_path + ':' + ENTRYPOINT_CONTAINER_PATH + ':ro',
+            '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             '--cap-add=SYS_ADMIN',
             '--security-opt', 'apparmor:unconfined',
             IMAGE_NAME, COMMAND
