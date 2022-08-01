@@ -283,10 +283,10 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
-            '-e', EENV_ON_LINUX + '=1',
-            '--label', 'riptide=1',
             '-p', '5678:1234',
             '-p', '5432:9876',
+            '-e', EENV_ON_LINUX + '=1',
+            '--label', 'riptide=1',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
@@ -309,6 +309,29 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', 'riptide=1',
             IMAGE_NAME, COMMAND
         ]
+        actual_cli = self.fix.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+    def test_set_use_host_network(self):
+        self.fix.set_network('name')
+        self.fix.set_use_host_network(True)
+
+        # Test API build
+        self.expected_api_base.update({
+            'network_mode': 'host'
+        })
+        del self.expected_api_base['ports']
+        actual_api = self.fix.build_docker_api()
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            '--network', 'host',
+            '-e', EENV_ON_LINUX + '=1',
+            '--label', 'riptide=1',
+            IMAGE_NAME, COMMAND
+        ]
+
         actual_cli = self.fix.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
 
@@ -673,6 +696,8 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-p', '5678:1234',
+            '-p', '5432:9876',
             '--entrypoint', ENTRYPOINT_CONTAINER_PATH,
             '-u', '0',
             '-e', EENV_ON_LINUX + '=1',
@@ -681,8 +706,8 @@ class ContainerBuilderTest(unittest.TestCase):
             '-e', 'key1=value1',
             '-e', 'key2=value2',
             '-e', EENV_OVERLAY_TARGETS + '=',
-            '-e', EENV_COMMAND_LOG_PREFIX + 'name2=command2',
             '-e', EENV_COMMAND_LOG_PREFIX + 'name1=command1',
+            '-e', EENV_COMMAND_LOG_PREFIX + 'name2=command2',
             '-e', EENV_USER + '=9898',
             '-e', EENV_GROUP + '=8989',
             '-e', EENV_RUN_MAIN_CMD_AS_USER + '=yes',
@@ -690,8 +715,6 @@ class ContainerBuilderTest(unittest.TestCase):
             '--label', RIPTIDE_DOCKER_LABEL_PROJECT + '=PROJECTNAME',
             '--label', RIPTIDE_DOCKER_LABEL_SERVICE + '=SERVICENAME',
             '--label', RIPTIDE_DOCKER_LABEL_MAIN + '=0',
-            '-p', '5678:1234',
-            '-p', '5432:9876',
             '--mount', f'type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1',
             '--mount', f'type=bind,dst=bind1,src=host1,ro=1',
             '--mount', f'type=bind,dst=bind2,src=host2,ro=0',
@@ -1205,10 +1228,10 @@ class ContainerBuilderTest(unittest.TestCase):
 
         # Test CLI build
         expected_cli = self.expected_cli_base + [
+            '-p', '9876:4536',
             '-e', EENV_ON_LINUX + '=1',
             '--label', RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + '=1',
             '--label', RIPTIDE_DOCKER_LABEL_HTTP_PORT + '=9876',
-            '-p', '9876:4536',
             IMAGE_NAME, COMMAND
         ]
         actual_cli = self.fix.build_docker_cli()
