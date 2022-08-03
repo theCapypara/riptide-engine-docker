@@ -65,6 +65,7 @@ class ContainerBuilder:
         self.hostname = None
         self.allow_full_memlock = False
         self.cap_sys_admin = False
+        self.use_host_network = False
 
         self.on_linux = platform.system().lower().startswith('linux')
         self.set_env(EENV_ON_LINUX, "1" if self.on_linux else "0")
@@ -112,6 +113,10 @@ class ContainerBuilder:
 
     def set_network(self, network: str):
         self.network = network
+        return self
+
+    def set_use_host_network(self, flag: bool):
+        self.use_host_network = flag
         return self
 
     def set_name(self, name: str):
@@ -282,8 +287,14 @@ class ContainerBuilder:
 
         if self.name:
             args['name'] = self.name
-        if self.network:
-            args['network'] = self.network
+
+        if self.use_host_network:
+            args['network_mode'] = 'host'
+        else:
+            if self.network:
+                args['network'] = self.network
+            args['ports'] = self.ports
+
         if self.entrypoint:
             args['entrypoint'] = [self.entrypoint]
         if self.work_dir:
@@ -307,7 +318,7 @@ class ContainerBuilder:
             args['environment'][EENV_NAMED_VOLUMES] = ':'.join(self.named_volumes_in_cnt)
 
         args['labels'] = self.labels
-        args['ports'] = self.ports
+
         args['mounts'] = list(self.mounts.values())
 
         return args
@@ -321,8 +332,15 @@ class ContainerBuilder:
         ]
         if self.name:
             shell += ["--name", self.name]
-        if self.network:
-            shell += ["--network", self.network]
+
+        if self.use_host_network:
+            shell += ["--network", 'host']
+        else:
+            if self.network:
+                shell += ["--network", self.network]
+            for container, host in self.ports.items():
+                shell += ['-p', str(host) + ':' + str(container)]
+            
         if self.entrypoint:
             shell += ["--entrypoint", self.entrypoint]
         if self.work_dir:
@@ -341,9 +359,6 @@ class ContainerBuilder:
 
         for key, value in self.labels.items():
             shell += ['--label', key + '=' + value]
-
-        for container, host in self.ports.items():
-            shell += ['-p', str(host) + ':' + str(container)]
 
         # Mac: Add delegated
         mac_add = ',consistency=delegated' if platform.system().lower().startswith('mac') else ''
@@ -431,7 +446,8 @@ def service_collect_logging_commands(service: Service) -> dict:
     """Collect logging commands environment variables for this service"""
     environment = {}
     if "logging" in service and "commands" in service["logging"]:
-        for cmdname, command in service["logging"]["commands"].items():
+        commands = service["logging"]["commands"]
+        for cmdname, command in {k: commands[k] for k in sorted(commands)}.items():
             environment[EENV_COMMAND_LOG_PREFIX + cmdname] = command
     return environment
 

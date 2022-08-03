@@ -31,6 +31,7 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
     )
 
     builder.set_name(get_container_name(project["name"]))
+    # network_mode host not supported atm
     builder.set_network(get_network_name(project["name"]))
 
     builder.set_env(EENV_NO_STDOUT_REDIRECT, "yes")
