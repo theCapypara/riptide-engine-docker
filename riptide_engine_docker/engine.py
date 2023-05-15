@@ -2,6 +2,7 @@ import asyncio
 
 import docker
 import json
+import platform
 from json import JSONDecodeError
 from typing import Tuple, Dict, Union, List, Optional
 
@@ -207,15 +208,22 @@ class DockerEngine(AbstractEngine):
 
     def __pull_image(self, image_name, line_reset, update_func):
         try:
+            # TODO: This is pretty messy and should just be entirely redone, not
+            # relying on the direct outout of the stream as-is.
             for line in self.client.api.pull(image_name, stream=True):
-                try:
-                    status = json.loads(line)
-                    if "progress" in status:
-                        update = status["status"] + " : " + status[ "progress"]
-                    else:
-                        update = status["status"]
-                except JSONDecodeError:
-                    update = line
+                # On other OSes the API doesn't really seem to behave nicely,
+                # returning invalid or incomplete JSON
+                if platform.system() == "Linux":
+                    try:
+                        status = json.loads(line)
+                        if "progress" in status:
+                            update = status["status"] + " : " + status[ "progress"]
+                        else:
+                            update = status["status"]
+                    except JSONDecodeError:
+                        update = line
+                else:
+                    update = "Pulling image..."
                 update_func(f"{line_reset}    {update}")
             update_func(f"{line_reset}    Done!\n")
         except APIError as ex:
