@@ -1,4 +1,4 @@
-__version__ = '0.7.7'
+__version__ = '0.8.0b1'
 from glob import glob
 from setuptools import setup, find_packages
 
@@ -19,7 +19,7 @@ setup(
     long_description_content_type='text/x-rst',
     url='https://github.com/theCapypara/riptide-engine-docker/',
     install_requires=[
-        'riptide-lib >= 0.7, < 0.8',
+        'riptide-lib >= 0.8.0b1, < 0.9',
         'docker >= 4.1'
     ],
     classifiers=[
@@ -27,10 +27,10 @@ setup(
         'Programming Language :: Python',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
     entry_points='''
         [riptide.engine]
