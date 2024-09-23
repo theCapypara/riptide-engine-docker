@@ -1,9 +1,10 @@
-__version__ = '0.8.1'
-from glob import glob
-from setuptools import setup, find_packages
+__version__ = '0.9.0'
 
 # README read-in
 from os import path
+
+from setuptools import setup, find_packages
+
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
@@ -19,7 +20,7 @@ setup(
     long_description_content_type='text/x-rst',
     url='https://github.com/theCapypara/riptide-engine-docker/',
     install_requires=[
-        'riptide-lib >= 0.8.0, < 0.9',
+        'riptide-lib >= 0.9, < 0.10',
         'docker >= 4.1'
     ],
     classifiers=[
@@ -32,6 +33,7 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
     ],
     entry_points='''
         [riptide.engine]
