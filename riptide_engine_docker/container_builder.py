@@ -1,8 +1,7 @@
 """Container builder module."""
-from collections import OrderedDict
-
 import os
 import platform
+from collections import OrderedDict
 from pathlib import PurePosixPath
 from typing import List, Union
 
@@ -47,6 +46,7 @@ class ContainerBuilder:
     Builds Riptide Docker containers for use with the Python API and
     the Docker CLI
     """
+
     def __init__(self, image: str, command: Union[List, str, None]) -> None:
         """Create a new container builder. Specify image and command to run."""
         self.env = OrderedDict()
@@ -143,7 +143,7 @@ class ContainerBuilder:
         self.allow_full_memlock = flag
         return self
 
-    def enable_riptide_entrypoint(self, image_config):
+    def enable_riptide_entrypoint(self, image_config, enable_original_entrypoint=True):
         """Add the Riptide entrypoint script and configure it."""
         # The original entrypoint of the image is replaced with
         # this custom entrypoint script, which may call the original entrypoint
@@ -155,9 +155,11 @@ class ContainerBuilder:
         entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), ENTRYPOINT_SH)
         self.set_mount(entrypoint_script, ENTRYPOINT_CONTAINER_PATH, 'ro')
 
-        # Collect entrypoint settings
-        for key, val in parse_entrypoint(image_config["Entrypoint"]).items():
-            self.set_env(key, val)
+        # Activate the original entrypoint
+        if enable_original_entrypoint:
+            # Collect entrypoint settings
+            for key, val in parse_entrypoint(image_config["Entrypoint"]).items():
+                self.set_env(key, val)
 
         self.set_entrypoint(ENTRYPOINT_CONTAINER_PATH)
 
@@ -170,7 +172,11 @@ class ContainerBuilder:
         self.set_env(EENV_HOST_SYSTEM_HOSTNAMES, ' '.join(get_localhost_hosts()))
 
     def _init_common(self, doc: Union[Service, Command], image_config, use_named_volume, unimportant_paths):
-        self.enable_riptide_entrypoint(image_config)
+        disable_original_entrypoint = False
+        if "ignore_original_entrypoint" in doc:
+            disable_original_entrypoint = doc["ignore_original_entrypoint"]
+
+        self.enable_riptide_entrypoint(image_config, not disable_original_entrypoint)
         self.add_host_hostnames()
         # Add volumes
         for host, volume in doc.collect_volumes().items():
@@ -340,7 +346,7 @@ class ContainerBuilder:
                 shell += ["--network", self.network]
             for container, host in self.ports.items():
                 shell += ['-p', str(host) + ':' + str(container)]
-            
+
         if self.entrypoint:
             shell += ["--entrypoint", self.entrypoint]
         if self.work_dir:
