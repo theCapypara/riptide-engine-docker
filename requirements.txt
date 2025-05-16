@@ -1,2 +1,2 @@
-riptide-lib >= 0.8.0b1, < 0.9
+riptide-lib >= 0.10, < 0.11
 docker==7.1.0
