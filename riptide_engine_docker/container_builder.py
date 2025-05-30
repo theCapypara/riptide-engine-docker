@@ -158,7 +158,7 @@ class ContainerBuilder:
         # Activate the original entrypoint
         if enable_original_entrypoint:
             # Collect entrypoint settings
-            for key, val in parse_entrypoint(image_config["Entrypoint"]).items():
+            for key, val in parse_entrypoint(image_config).items():
                 self.set_env(key, val)
 
         self.set_entrypoint(ENTRYPOINT_CONTAINER_PATH)
@@ -418,7 +418,7 @@ def get_service_container_name(project_name: str, service_name: str):
     return 'riptide__' + project_name + '__' + service_name
 
 
-def parse_entrypoint(entrypoint):
+def parse_entrypoint(image_config):
     """
     Parse the original entrypoint of an image and return a map of variables for the riptide entrypoint script.
     RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT: Original entrypoint as string to be used with exec.
@@ -427,6 +427,9 @@ def parse_entrypoint(entrypoint):
                                          When the original entrypoint is a string, the command does not get run.
                                          See table at https://docs.docker.com/engine/reference/builder/#shell-form-entrypoint-example
     """
+    entrypoint = None
+    if "Entrypoint" in entrypoint:
+        entrypoint = image_config["Entrypoint"]
     # Is the original entrypoint set?
     if not entrypoint:
         return {EENV_ORIGINAL_ENTRYPOINT: ""}
@@ -445,7 +448,6 @@ def parse_entrypoint(entrypoint):
             EENV_ORIGINAL_ENTRYPOINT: "/bin/sh -c " + entrypoint,
             EENV_DONT_RUN_CMD: "true"
         }
-    pass
 
 
 def service_collect_logging_commands(service: Service) -> dict:
