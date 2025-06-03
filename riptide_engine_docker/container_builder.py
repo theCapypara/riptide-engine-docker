@@ -428,7 +428,7 @@ def parse_entrypoint(image_config):
                                          See table at https://docs.docker.com/engine/reference/builder/#shell-form-entrypoint-example
     """
     entrypoint = None
-    if "Entrypoint" in entrypoint:
+    if "Entrypoint" in image_config:
         entrypoint = image_config["Entrypoint"]
     # Is the original entrypoint set?
     if not entrypoint:

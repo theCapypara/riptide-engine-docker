@@ -90,7 +90,7 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
         # 2.5. Prepare container
         try:
             image_config = client.api.inspect_image(service["image"])["Config"]
-            command = image_config["Cmd"]
+            command = image_config["Cmd"] if "Cmd" in image_config else None
             if "command" in service:
                 command = service.get_command(command_group)
             builder = ContainerBuilder(service["image"], command)

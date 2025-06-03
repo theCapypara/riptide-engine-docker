@@ -24,10 +24,11 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
 
     image = client.images.get(command["image"])
     image_config = client.api.inspect_image(command["image"])["Config"]
+    image_command = image_config["Cmd"] if "Cmd" in image_config else None
 
     builder = ContainerBuilder(
         command["image"],
-        command["command"] if "command" in command else image_config["Cmd"]
+        command["command"] if "command" in command else image_command
     )
 
     builder.set_name(get_container_name(project["name"]))
