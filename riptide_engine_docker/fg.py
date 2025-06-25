@@ -122,7 +122,7 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
             print('    ' + str(ex), file=sys.stderr)
             return
 
-    command = image_config["Cmd"]
+    command = image_config["Cmd"] if "Cmd" in image_config else None
     if "command" in exec_object:
         if isinstance(exec_object, Service):
             command = exec_object.get_command(command_group)
