@@ -4,13 +4,19 @@ from time import sleep
 from docker import DockerClient
 from docker.errors import NotFound, ContainerError
 
-from riptide_engine_docker.container_builder import ContainerBuilder, get_network_name, EENV_USER, EENV_GROUP, \
-    EENV_RUN_MAIN_CMD_AS_USER, EENV_NO_STDOUT_REDIRECT
+from riptide_engine_docker.container_builder import (
+    ContainerBuilder,
+    get_network_name,
+    EENV_USER,
+    EENV_GROUP,
+    EENV_RUN_MAIN_CMD_AS_USER,
+    EENV_NO_STDOUT_REDIRECT,
+)
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 from riptide_engine_docker.network import add_network_links
 
 
-def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', run_as_root=False) -> (int, str):
+def cmd_detached(client: DockerClient, project: "Project", command: "Command", run_as_root=False) -> (int, str):
     """See AbstractEngine.cmd_detached."""
     name = get_container_name(project["name"])
 
@@ -19,17 +25,14 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
     try:
         client.images.get(command["image"])
     except NotFound:
-        image_name_full = command['image'] if ":" in command['image'] else command['image'] + ":latest"
+        image_name_full = command["image"] if ":" in command["image"] else command["image"] + ":latest"
         client.api.pull(image_name_full)
 
     image = client.images.get(command["image"])
     image_config = client.api.inspect_image(command["image"])["Config"]
     image_command = image_config["Cmd"] if "Cmd" in image_config else None
 
-    builder = ContainerBuilder(
-        command["image"],
-        command["command"] if "command" in command else image_command
-    )
+    builder = ContainerBuilder(command["image"], command["command"] if "command" in command else image_command)
 
     builder.set_name(get_container_name(project["name"]))
     # network_mode host not supported atm
@@ -49,10 +52,10 @@ def cmd_detached(client: DockerClient, project: 'Project', command: 'Command', r
         container.start()
         exit_code = container.wait()
         output = container.logs()
-        return exit_code['StatusCode'], output
+        return exit_code["StatusCode"], output
     except ContainerError as err:
         return err.exit_status, err.stderr
 
 
 def get_container_name(project_name: str):
-    return 'riptide__' + project_name + '__detached_cmd__' + str(os.getpid())
+    return "riptide__" + project_name + "__detached_cmd__" + str(os.getpid())

@@ -13,14 +13,16 @@ def start(client: DockerClient, project_name: str):
     try:
         client.networks.get(net_name)
     except NotFound:
-        client.networks.create(net_name, driver="bridge", attachable=True, labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"})
+        client.networks.create(
+            net_name, driver="bridge", attachable=True, labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"}
+        )
 
 
 def collect_names_for_links(client: DockerClient, links: List[str]) -> List[str]:
     """Collects a list of Docker networks for all known Riptide projects."""
     names = [get_network_name(p) for p in links]
     if len(names) > 0:
-        return [n.name for n in client.networks.list(names=names, filters={'type': 'custom'})]
+        return [n.name for n in client.networks.list(names=names, filters={"type": "custom"})]
     return []
 
 

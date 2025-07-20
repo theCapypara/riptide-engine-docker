@@ -12,9 +12,16 @@ from riptide.config.document.service import Service
 from riptide.config.files import CONTAINER_SRC_PATH, get_current_relative_src_path
 from riptide.engine.abstract import ExecError
 
-from riptide_engine_docker.container_builder import get_cmd_container_name, get_network_name, \
-    get_service_container_name, ContainerBuilder, EENV_USER, EENV_GROUP, EENV_RUN_MAIN_CMD_AS_USER, \
-    EENV_NO_STDOUT_REDIRECT
+from riptide_engine_docker.container_builder import (
+    get_cmd_container_name,
+    get_network_name,
+    get_service_container_name,
+    ContainerBuilder,
+    EENV_USER,
+    EENV_GROUP,
+    EENV_RUN_MAIN_CMD_AS_USER,
+    EENV_NO_STDOUT_REDIRECT,
+)
 from riptide.lib.cross_platform.cpuser import getuid, getgid
 from riptide_engine_docker.network import add_network_links
 import threading
@@ -22,14 +29,9 @@ import threading
 DEFAULT_EXEC_FG_CMD = "if command -v bash >> /dev/null; then bash; else sh; fi"
 
 
-def exec_fg(client,
-            project: Project,
-            service_name: str,
-            cmd: str,
-            cols=None,
-            lines=None,
-            root=False,
-            environment_variables=None) -> int:
+def exec_fg(
+    client, project: Project, service_name: str, cmd: str, cols=None, lines=None, root=False, environment_variables=None
+) -> int:
     """Open an interactive shell to one running service container"""
     if service_name not in project["app"]["services"]:
         raise ExecError("Service not found.")
@@ -47,7 +49,7 @@ def exec_fg(client,
         container = client.containers.get(container_name)
         if container.status == "exited":
             container.remove()
-            raise ExecError('The service is not running. Try starting it first.')
+            raise ExecError("The service is not running. Try starting it first.")
 
         # TODO: The Docker Python API doesn't seem to support interactive exec - use pty.spawn for now
         shell = ["docker", "exec", "-it"]
@@ -55,9 +57,9 @@ def exec_fg(client,
             shell += ["-u", str(user) + ":" + str(user_group)]
         if cols and lines:
             # Add COLUMNS and LINES env variables
-            shell += ['-e', 'COLUMNS=' + str(cols), '-e', 'LINES=' + str(lines)]
+            shell += ["-e", "COLUMNS=" + str(cols), "-e", "LINES=" + str(lines)]
         for key, value in environment_variables.items():
-            shell += ['-e', key + '=' + value]
+            shell += ["-e", key + "=" + value]
         if "src" in service_obj["roles"]:
             # Service has source code, set workdir in container to current workdir
             shell += ["-w", CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project)]
@@ -66,9 +68,9 @@ def exec_fg(client,
         return _spawn(shell)
 
     except NotFound:
-        raise ExecError('The service is not running. Try starting it first.')
+        raise ExecError("The service is not running. Try starting it first.")
     except APIError as err:
-        raise ExecError('Error communicating with the Docker Engine.') from err
+        raise ExecError("Error communicating with the Docker Engine.") from err
 
 
 def service_fg(client, project: Project, service_name: str, command_group: str, arguments: List[str]) -> None:
@@ -76,7 +78,7 @@ def service_fg(client, project: Project, service_name: str, command_group: str, 
     if service_name not in project["app"]["services"]:
         raise ExecError("Service not found.")
 
-    container_name = get_service_container_name(project['name'], service_name)
+    container_name = get_service_container_name(project["name"], service_name)
     command_obj = project["app"]["services"][service_name]
 
     fg(client, project, container_name, command_obj, arguments, command_group)
@@ -87,20 +89,28 @@ def cmd_fg(client, project: Project, command_name: str, arguments: List[str]) ->
     if command_name not in project["app"]["commands"]:
         raise ExecError("Command not found.")
 
-    container_name = get_cmd_container_name(project['name'], command_name)
+    container_name = get_cmd_container_name(project["name"], command_name)
     command_obj = project["app"]["commands"][command_name]
 
     return fg(client, project, container_name, command_obj, arguments, None)
 
 
 def cmd_in_service_fg(client, project: Project, command_name: str, service_name: str, arguments: List[str]) -> int:
-    command_obj: 'Command' = project["app"]["commands"][command_name]
+    command_obj: "Command" = project["app"]["commands"][command_name]
     command_string = (command_obj["command"] + " " + " ".join(f'"{w}"' for w in arguments)).rstrip()
-    return exec_fg(client, project, service_name, command_string,
-                   environment_variables=command_obj.collect_environment())
+    return exec_fg(
+        client, project, service_name, command_string, environment_variables=command_obj.collect_environment()
+    )
 
 
-def fg(client, project: Project, container_name: str, exec_object: Union[Command, Service], arguments: List[str], command_group: Optional[str]) -> int:
+def fg(
+    client,
+    project: Project,
+    container_name: str,
+    exec_object: Union[Command, Service],
+    arguments: List[str],
+    command_group: Optional[str],
+) -> int:
     # TODO: Piping | <
     # TODO: Not only /src into container but everything
 
@@ -111,7 +121,7 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
     except NotFound:
         print("Riptide: Pulling image... Your command will be run after that.", file=sys.stderr)
         try:
-            client.api.pull(exec_object['image'] if ":" in exec_object['image'] else exec_object['image'] + ":latest")
+            client.api.pull(exec_object["image"] if ":" in exec_object["image"] else exec_object["image"] + ":latest")
             image = client.images.get(exec_object["image"])
             image_config = client.api.inspect_image(exec_object["image"])["Config"]
         except ImageNotFound as ex:
@@ -119,7 +129,7 @@ def fg(client, project: Project, container_name: str, exec_object: Union[Command
             return
         except APIError as ex:
             print("Riptide: There was an error pulling the image. Your command will not run :(", file=sys.stderr)
-            print('    ' + str(ex), file=sys.stderr)
+            print("    " + str(ex), file=sys.stderr)
             return
 
     command = image_config["Cmd"] if "Cmd" in image_config else None
