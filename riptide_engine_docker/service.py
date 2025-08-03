@@ -1,35 +1,38 @@
 import copy
 import json
-from time import sleep
 import threading
+from json import JSONDecodeError
+from time import sleep
 
 from docker import DockerClient
-from docker.errors import NotFound, APIError, ContainerError
-from json import JSONDecodeError
-
+from docker.errors import APIError, ContainerError, NotFound
 from riptide.config.document.config import Config
 from riptide.config.document.service import Service
-
+from riptide.engine.results import ResultError, ResultQueue, StartStopResultStep
+from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.container_builder import (
-    get_network_name,
-    get_service_container_name,
-    ContainerBuilder,
-    RIPTIDE_DOCKER_LABEL_IS_RIPTIDE,
+    EENV_GROUP,
     EENV_NO_STDOUT_REDIRECT,
     EENV_ORIGINAL_ENTRYPOINT,
     EENV_RUN_MAIN_CMD_AS_USER,
     EENV_USER,
-    EENV_GROUP,
+    RIPTIDE_DOCKER_LABEL_IS_RIPTIDE,
+    ContainerBuilder,
+    get_network_name,
+    get_service_container_name,
 )
-from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
-from riptide.lib.cross_platform.cpuser import getuid, getgid
 from riptide_engine_docker.network import add_network_links
 
 start_lock = threading.Lock()
 
 
 def start(
-    project_name: str, service: Service, command_group: str, client: DockerClient, queue: ResultQueue, quick=False
+    project_name: str,
+    service: Service,
+    command_group: str,
+    client: DockerClient,
+    queue: ResultQueue[StartStopResultStep],
+    quick=False,
 ):
     """
     Starts the given service by starting the container (if not already started).
@@ -175,13 +178,13 @@ def start(
                     pre_start_config["environment"][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
 
                     # RUN
-                    container = client.containers.create(**pre_start_config)
+                    container = client.containers.create(**pre_start_config)  # type: ignore
                     add_network_links(client, container, None, service.get_project()["links"])
                     container.start()
                     exit_code = container.wait()
                     if exit_code["StatusCode"] != 0:
                         raise ContainerError(
-                            container, exit_code["StatusCode"], cmd, service["image"], container.logs(stdout=False)
+                            container, exit_code["StatusCode"], cmd, service["image"], str(container.logs(stdout=False))
                         )
 
                 except (APIError, ContainerError) as err:
@@ -198,7 +201,7 @@ def start(
             with start_lock:
                 builder.service_add_main_port(service)
                 # CREATE
-                container = client.containers.create(**builder.build_docker_api())
+                container = client.containers.create(**builder.build_docker_api())  # type: ignore
                 # Add container to link networks
                 add_network_links(client, container, service["$name"], service.get_project()["links"])
                 # Add container to main network
@@ -238,7 +241,7 @@ def start(
                         cmd=["/bin/sh", "-c", cmd],
                         detach=False,
                         tty=True,
-                        user=str(getuid()) if service["run_post_start_as_current_user"] else None,
+                        user=str(getuid()) if service["run_post_start_as_current_user"] else "",
                     )
                 except (APIError, ContainerError) as err:
                     queue.end_with_error(ResultError("ERROR running post start command '" + cmd + "'.", cause=err))
@@ -253,7 +256,9 @@ def start(
     queue.end()
 
 
-def stop(project_name: str, service_name: str, client: DockerClient, queue: ResultQueue = None):
+def stop(
+    project_name: str, service_name: str, client: DockerClient, queue: ResultQueue[StartStopResultStep] | None = None
+):
     """
     Stops the given service by stopping the container (if not already started).
 
@@ -265,6 +270,7 @@ def stop(project_name: str, service_name: str, client: DockerClient, queue: Resu
 
     :param project_name:    Name of the project to start
     :param service_name:    Name of the service to start
+    :param client:          Docker client
     :param queue:           ResultQueue to update, or None
     """
     name = get_service_container_name(project_name, service_name)

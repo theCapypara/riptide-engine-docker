@@ -1,4 +1,9 @@
 riptide-lib >= 0.10, < 0.11
 docker==7.1.0
+
 ruff
 mypy
+types-requests
+types-psutil
+types-PyYAML
+types-docker

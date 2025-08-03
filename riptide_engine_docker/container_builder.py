@@ -4,10 +4,9 @@ import os
 import platform
 from collections import OrderedDict
 from pathlib import PurePosixPath
-from typing import List, Union
+from typing import TypeAlias, TypedDict
 
 from docker.types import Mount, Ulimit
-
 from riptide.config.document.command import Command
 from riptide.config.document.service import Service
 from riptide.config.hosts import get_localhost_hosts
@@ -40,6 +39,27 @@ EENV_OVERLAY_TARGETS = "RIPTIDE__DOCKER_OVERLAY_TARGETS"
 # For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
 
+ImageConfig: TypeAlias = dict[str, str]
+
+
+class DockerContainerCreate(TypedDict, total=False):
+    image: str
+    command: str | list[str] | None
+    name: str
+    network_mode: str
+    network: str
+    ports: dict[int, int] | None
+    entrypoint: list[str]
+    working_dir: str
+    user: int
+    hostname: str
+    ulimits: list[Ulimit]
+    cap_add: list[str]
+    security_opt: list[str]
+    environment: dict[str, str]
+    labels: dict[str, str]
+    mounts: list[Mount]
+
 
 class ContainerBuilder:
     """
@@ -48,33 +68,36 @@ class ContainerBuilder:
     the Docker CLI
     """
 
-    def __init__(self, image: str, command: Union[List, str, None]) -> None:
+    def __init__(self, image: str, command: list[str] | str | None) -> None:
         """Create a new container builder. Specify image and command to run."""
-        self.env = OrderedDict()
-        self.labels = OrderedDict()
-        self.mounts = OrderedDict()
-        self.ports = OrderedDict()
-        self.network = None
-        self.name = None
-        self.entrypoint = None
-        self.command = command
-        self.args = []
-        self.work_dir = None
-        self.image = image
+        self.env: OrderedDict[str, str] = OrderedDict()
+        self.labels: OrderedDict[str, str] = OrderedDict()
+        self.mounts: OrderedDict[str, Mount] = OrderedDict()
+        self.ports: OrderedDict[int, int] = OrderedDict()
+        self.network: str | None = None
+        self.name: str | None = None
+        self.entrypoint: str | None = None
+        self.command: list[str] | str | None = command
+        self.args: list[str] = []
+        self.work_dir: str | None = None
+        self.image: str = image
         self.set_label(RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, "1")
-        self.run_as_root = False
-        self.hostname = None
-        self.allow_full_memlock = False
-        self.cap_sys_admin = False
-        self.use_host_network = False
+        self.run_as_root: bool = False
+        self.hostname: str | None = None
+        self.allow_full_memlock: bool = False
+        self.cap_sys_admin: bool = False
+        self.use_host_network: bool = False
 
-        self.on_linux = platform.system().lower().startswith("linux")
+        self.on_linux: bool = platform.system().lower().startswith("linux")
         self.set_env(EENV_ON_LINUX, "1" if self.on_linux else "0")
 
-        self.named_volumes_in_cnt = []
+        self.named_volumes_in_cnt: list[str] = []
 
-    def set_env(self, name: str, val: str):
-        self.env[name] = val
+    def set_env(self, name: str, val: str | None):
+        if val is None:
+            del self.env[name]
+        else:
+            self.env[name] = val
         return self
 
     def set_label(self, name: str, val: str):
@@ -128,7 +151,7 @@ class ContainerBuilder:
         self.entrypoint = entrypoint
         return self
 
-    def set_args(self, args: List[str]):
+    def set_args(self, args: list[str]):
         self.args = args
         return self
 
@@ -144,7 +167,7 @@ class ContainerBuilder:
         self.allow_full_memlock = flag
         return self
 
-    def enable_riptide_entrypoint(self, image_config, enable_original_entrypoint=True):
+    def enable_riptide_entrypoint(self, image_config: ImageConfig, enable_original_entrypoint=True):
         """Add the Riptide entrypoint script and configure it."""
         # The original entrypoint of the image is replaced with
         # this custom entrypoint script, which may call the original entrypoint
@@ -172,7 +195,7 @@ class ContainerBuilder:
         """
         self.set_env(EENV_HOST_SYSTEM_HOSTNAMES, " ".join(get_localhost_hosts()))
 
-    def _init_common(self, doc: Union[Service, Command], image_config, use_named_volume, unimportant_paths):
+    def _init_common(self, doc: Service | Command, image_config: ImageConfig, use_named_volume, unimportant_paths):
         disable_original_entrypoint = False
         if "ignore_original_entrypoint" in doc:
             disable_original_entrypoint = doc["ignore_original_entrypoint"]
@@ -260,19 +283,20 @@ class ContainerBuilder:
         )
         return self
 
-    def build_docker_api(self) -> dict:
+    def build_docker_api(self) -> DockerContainerCreate:
         """
         Build the docker container in the form of Docker API containers.run arguments.
         """
-        args = {"image": self.image}
+        args: DockerContainerCreate = {"image": self.image}
 
         if self.command is None:
             args["command"] = None
         elif isinstance(self.command, str):
             # COMMAND IS STRING
-            args["command"] = self.command
+            command = self.command
             if len(self.args) > 0:
-                args["command"] += " " + " ".join(f'"{w}"' for w in self.args)
+                command += " " + " ".join(f'"{w}"' for w in self.args)
+            args["command"] = command
 
         else:
             list_command = self.command.copy()
@@ -281,12 +305,13 @@ class ContainerBuilder:
                 list_command += self.args
 
             # Strange Docker API Bug (?) requires args with spaces to be quoted...
-            args["command"] = []
+            command_list = []
             for item in list_command:
                 if " " in item:
-                    args["command"].append('"' + item + '"')
+                    command_list.append('"' + item + '"')
                 else:
-                    args["command"].append(item)
+                    command_list.append(item)
+            args["command"] = command_list
 
         if self.name:
             args["name"] = self.name
@@ -326,7 +351,7 @@ class ContainerBuilder:
 
         return args
 
-    def build_docker_cli(self) -> List[str]:
+    def build_docker_cli(self) -> list[str]:
         """
         Build the docker container in the form of a Docker CLI command.
         """
@@ -393,11 +418,12 @@ class ContainerBuilder:
         if command is None:
             command = ""
         if isinstance(command, list):
-            command = self.command[0]
+            commandstr = command[0]
             # If the command itself contains arguments, they have to be joined with
             # quotes, just like self.args
-            if len(self.command) > 1:
-                command += " " + " ".join(f'"{w}"' for w in self.command[1:])
+            if len(command) > 1:
+                commandstr += " " + " ".join(f'"{w}"' for w in command[1:])
+            command = commandstr
 
         shell += [self.image, (command + " " + " ".join(f'"{w}"' for w in self.args)).rstrip()]
         return shell
@@ -415,7 +441,7 @@ def get_service_container_name(project_name: str, service_name: str):
     return "riptide__" + project_name + "__" + service_name
 
 
-def parse_entrypoint(image_config):
+def parse_entrypoint(image_config: ImageConfig):
     """
     Parse the original entrypoint of an image and return a map of variables for the riptide entrypoint script.
     RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT: Original entrypoint as string to be used with exec.

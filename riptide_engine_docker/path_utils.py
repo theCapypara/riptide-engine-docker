@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import os
-import shutil
 
 from riptide.config.document.command import Command
+from riptide.config.document.project import Project
 from riptide.config.files import path_in_project
 from riptide.engine.abstract import ExecError
 
@@ -10,7 +12,7 @@ IMAGE = "alpine"
 #       problems under windows. We could probably just use the AbstractEngine implementation there.
 
 
-def rm(engine, path, project: "Project"):
+def rm(engine, path, project: Project):
     """
     Removes path from the hosts file system using a Docker container running root.
     See AbstractEngine.path_rm for general usage.
@@ -36,7 +38,7 @@ def rm(engine, path, project: "Project"):
         raise ExecError(f"Error removing the path ({str(exit_code)}) {path}: {output}")
 
 
-def copy(engine, fromm, to, project: "Project"):
+def copy(engine, fromm, to, project: Project):
     """
     Copy files from the hosts file system using a Docker container running root.
     See AbstractEngine.path_copy for general usage.

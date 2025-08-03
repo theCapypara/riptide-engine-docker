@@ -1,34 +1,34 @@
+# mypy: ignore-errors
+
 import os
 import unittest
+from unittest import mock
+from unittest.mock import MagicMock, Mock
 
 from docker.types import Mount
-from unittest import mock
-
-from unittest.mock import Mock, MagicMock
-
 from riptide.tests.configcrunch_test_utils import YamlConfigDocumentStub
 from riptide.tests.stubs import ProjectStub
 from riptide_engine_docker.container_builder import (
-    ContainerBuilder,
-    ENTRYPOINT_SH,
-    ENTRYPOINT_CONTAINER_PATH,
-    EENV_ORIGINAL_ENTRYPOINT,
-    EENV_DONT_RUN_CMD,
+    DOCKER_ENGINE_HTTP_PORT_BND_START,
     EENV_COMMAND_LOG_PREFIX,
-    EENV_USER,
+    EENV_DONT_RUN_CMD,
     EENV_GROUP,
+    EENV_HOST_SYSTEM_HOSTNAMES,
+    EENV_NAMED_VOLUMES,
+    EENV_ON_LINUX,
+    EENV_ORIGINAL_ENTRYPOINT,
+    EENV_OVERLAY_TARGETS,
     EENV_RUN_MAIN_CMD_AS_USER,
+    EENV_USER,
+    EENV_USER_RUN,
+    ENTRYPOINT_CONTAINER_PATH,
+    ENTRYPOINT_SH,
+    RIPTIDE_DOCKER_LABEL_HTTP_PORT,
     RIPTIDE_DOCKER_LABEL_IS_RIPTIDE,
     RIPTIDE_DOCKER_LABEL_MAIN,
     RIPTIDE_DOCKER_LABEL_PROJECT,
     RIPTIDE_DOCKER_LABEL_SERVICE,
-    RIPTIDE_DOCKER_LABEL_HTTP_PORT,
-    EENV_USER_RUN,
-    DOCKER_ENGINE_HTTP_PORT_BND_START,
-    EENV_ON_LINUX,
-    EENV_HOST_SYSTEM_HOSTNAMES,
-    EENV_OVERLAY_TARGETS,
-    EENV_NAMED_VOLUMES,
+    ContainerBuilder,
 )
 
 IMAGE_NAME = "unit/testimage"
@@ -799,9 +799,9 @@ class ContainerBuilderTest(unittest.TestCase):
             "--mount",
             f"type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1",
             "--mount",
-            f"type=bind,dst=bind1,src=host1,ro=1",
+            "type=bind,dst=bind1,src=host1,ro=1",
             "--mount",
-            f"type=bind,dst=bind2,src=host2,ro=0",
+            "type=bind,dst=bind2,src=host2,ro=0",
             IMAGE_NAME,
             COMMAND,
         ]
@@ -1318,7 +1318,7 @@ class ContainerBuilderTest(unittest.TestCase):
             "--mount",
             "type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label=riptide=1",
             "--mount",
-            f"type=bind,dst=bind2,src=host2,ro=0",
+            "type=bind,dst=bind2,src=host2,ro=0",
             IMAGE_NAME,
             COMMAND,
         ]
@@ -1444,9 +1444,9 @@ class ContainerBuilderTest(unittest.TestCase):
             "--mount",
             f"type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1",
             "--mount",
-            f"type=bind,dst=bind1,src=host1,ro=1",
+            "type=bind,dst=bind1,src=host1,ro=1",
             "--mount",
-            f"type=bind,dst=bind2,src=host2,ro=0",
+            "type=bind,dst=bind2,src=host2,ro=0",
             IMAGE_NAME,
             COMMAND,
         ]
@@ -1543,7 +1543,7 @@ class ContainerBuilderTest(unittest.TestCase):
             "--mount",
             "type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label=riptide=1",
             "--mount",
-            f"type=bind,dst=bind2,src=host2,ro=0",
+            "type=bind,dst=bind2,src=host2,ro=0",
             IMAGE_NAME,
             COMMAND,
         ]
