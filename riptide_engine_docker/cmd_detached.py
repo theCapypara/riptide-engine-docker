@@ -52,7 +52,7 @@ def cmd_detached(client: DockerClient, project: Project, command: Command, run_a
         container.start()
         exit_code = container.wait()
         output = container.logs()
-        return exit_code["StatusCode"], str(output)
+        return exit_code["StatusCode"], output.decode("utf-8")
     except ContainerError as err:
         return err.exit_status, err.stderr  # type: ignore
 
