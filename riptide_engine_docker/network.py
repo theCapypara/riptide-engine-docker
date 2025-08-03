@@ -1,5 +1,3 @@
-from typing import List, Union
-
 import docker.errors
 from docker import DockerClient
 from docker.errors import NotFound
@@ -20,7 +18,7 @@ def start(client: DockerClient, project_name: str):
         )
 
 
-def collect_names_for_links(client: DockerClient, links: List[str]) -> List[str]:
+def collect_names_for_links(client: DockerClient, links: list[str]) -> list[str]:
     """Collects a list of Docker networks for all known Riptide projects."""
     names = [get_network_name(p) for p in links]
     if len(names) > 0:
@@ -28,7 +26,7 @@ def collect_names_for_links(client: DockerClient, links: List[str]) -> List[str]
     return []
 
 
-def add_network_links(client: DockerClient, container: Container, name: Union[str, None], links: List[str]):
+def add_network_links(client: DockerClient, container: Container, name: str | None, links: list[str]):
     """Adds a project to all container networks specified in the links. Links is a list of Riptide projects."""
     for network_name in collect_names_for_links(client, links):
         try:

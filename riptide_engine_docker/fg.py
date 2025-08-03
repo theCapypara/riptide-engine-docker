@@ -1,7 +1,6 @@
 import sys
 import threading
 from time import sleep
-from typing import List, Optional, Union
 
 import riptide.lib.cross_platform.cppty as pty
 from docker.errors import APIError, ImageNotFound, NotFound
@@ -70,7 +69,7 @@ def exec_fg(
         raise ExecError("Error communicating with the Docker Engine.") from err
 
 
-def service_fg(client, project: Project, service_name: str, command_group: str, arguments: List[str]) -> None:
+def service_fg(client, project: Project, service_name: str, command_group: str, arguments: list[str]) -> None:
     """Run a service in foreground"""
     if service_name not in project["app"]["services"]:
         raise ExecError("Service not found.")
@@ -81,7 +80,7 @@ def service_fg(client, project: Project, service_name: str, command_group: str, 
     fg(client, project, container_name, command_obj, arguments, command_group)
 
 
-def cmd_fg(client, project: Project, command_name: str, arguments: List[str]) -> int:
+def cmd_fg(client, project: Project, command_name: str, arguments: list[str]) -> int:
     """Run a command in foreground, returns the exit code"""
     if command_name not in project["app"]["commands"]:
         raise ExecError("Command not found.")
@@ -92,7 +91,7 @@ def cmd_fg(client, project: Project, command_name: str, arguments: List[str]) ->
     return fg(client, project, container_name, command_obj, arguments, None)
 
 
-def cmd_in_service_fg(client, project: Project, command_name: str, service_name: str, arguments: List[str]) -> int:
+def cmd_in_service_fg(client, project: Project, command_name: str, service_name: str, arguments: list[str]) -> int:
     command_obj: "Command" = project["app"]["commands"][command_name]
     command_string = (command_obj["command"] + " " + " ".join(f'"{w}"' for w in arguments)).rstrip()
     return exec_fg(
@@ -104,9 +103,9 @@ def fg(
     client,
     project: Project,
     container_name: str,
-    exec_object: Union[Command, Service],
-    arguments: List[str],
-    command_group: Optional[str],
+    exec_object: Command | Service,
+    arguments: list[str],
+    command_group: str | None,
 ) -> int:
     # TODO: Piping | <
     # TODO: Not only /src into container but everything
@@ -166,7 +165,7 @@ def fg(
     return _spawn(builder.build_docker_cli())
 
 
-def _spawn(shell: List[str]) -> int:
+def _spawn(shell: list[str]) -> int:
     # XXX: Needs to be shifted by 1 byte because the return value of os.waitpid is shifted for some reason???
     return pty.spawn(shell, win_repeat_argv0=True) >> 8
 

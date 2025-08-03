@@ -4,7 +4,6 @@ import asyncio
 import json
 import platform
 from json import JSONDecodeError
-from typing import Tuple
 
 import docker
 from docker.errors import APIError, ImageNotFound
@@ -97,7 +96,7 @@ class DockerEngine(AbstractEngine):
     def container_name_for(self, project: Project, service_name: str):
         return get_service_container_name(project["name"], service_name)
 
-    def address_for(self, project: Project, service_name: str) -> Tuple[str, int] | None:
+    def address_for(self, project: Project, service_name: str) -> tuple[str, int] | None:
         if "port" not in project["app"]["services"][service_name]:
             return None
 
@@ -151,7 +150,7 @@ class DockerEngine(AbstractEngine):
         except Exception as err:
             raise ConnectionError("Connection with Docker Daemon failed") from err
 
-    def cmd_detached(self, project: Project, command: "Command", run_as_root=False):
+    def cmd_detached(self, project: Project, command: Command, run_as_root=False):
         # Start network
         network.start(self.client, project["name"])
         command.parent_doc = project["app"]

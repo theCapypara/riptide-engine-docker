@@ -1,6 +1,5 @@
 from time import sleep
 
-from typing import Union
 
 from docker.errors import NotFound
 from warnings import warn
@@ -92,7 +91,7 @@ class DockerEngineTester(AbstractEngineTester):
             return None
         return env_return
 
-    def get_file(self, file, engine, project, service) -> Union[str, None]:
+    def get_file(self, file, engine, project, service) -> str | None:
         container = self._get_container(engine, project, service)
 
         exit_code, env_return = container.exec_run(cmd=f"cat {file}", stderr=False)

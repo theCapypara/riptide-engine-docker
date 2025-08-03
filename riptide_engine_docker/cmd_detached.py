@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from typing import Tuple
 
 from docker import DockerClient
 from docker.errors import ContainerError, NotFound
@@ -19,7 +18,7 @@ from riptide_engine_docker.container_builder import (
 from riptide_engine_docker.network import add_network_links
 
 
-def cmd_detached(client: DockerClient, project: Project, command: Command, run_as_root=False) -> Tuple[int, str]:
+def cmd_detached(client: DockerClient, project: Project, command: Command, run_as_root=False) -> tuple[int, str]:
     """See AbstractEngine.cmd_detached."""
     # Pulling image
     # Check if image exists

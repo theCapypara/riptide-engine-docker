@@ -2,7 +2,7 @@
 Module for manipulating and listing Docker named volumes. For function docs, see engine interface specifications.
 """
 
-from typing import List
+import builtins
 
 from docker import DockerClient
 from docker.errors import ContainerError, NotFound
@@ -16,7 +16,7 @@ from riptide_engine_docker.path_utils import IMAGE as PATH_UTILS_IMAGE
 NAMED_VOLUME_INTERNAL_PREFIX = "riptide__"
 
 
-def list(client: DockerClient) -> List[str]:
+def list(client: DockerClient) -> builtins.list[str]:
     volumes = client.volumes.list(filters={"label": RIPTIDE_DOCKER_LABEL_IS_RIPTIDE})
     volumes_wo_prefix = []
     len_prefix = len(NAMED_VOLUME_INTERNAL_PREFIX)
