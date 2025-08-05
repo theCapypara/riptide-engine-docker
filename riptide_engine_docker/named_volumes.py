@@ -1,20 +1,23 @@
 """
 Module for manipulating and listing Docker named volumes. For function docs, see engine interface specifications.
 """
-from typing import List
+
+import builtins
 
 from docker import DockerClient
-from docker.errors import NotFound, ContainerError
-
+from docker.errors import ContainerError, NotFound
 from riptide.engine.abstract import ExecError
-from riptide_engine_docker.container_builder import RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, ContainerBuilder
+from riptide_engine_docker.container_builder import (
+    RIPTIDE_DOCKER_LABEL_IS_RIPTIDE,
+    ContainerBuilder,
+)
 from riptide_engine_docker.path_utils import IMAGE as PATH_UTILS_IMAGE
 
-NAMED_VOLUME_INTERNAL_PREFIX = 'riptide__'
+NAMED_VOLUME_INTERNAL_PREFIX = "riptide__"
 
 
-def list(client: DockerClient) -> List[str]:
-    volumes = client.volumes.list(filters={'label': RIPTIDE_DOCKER_LABEL_IS_RIPTIDE})
+def list(client: DockerClient) -> builtins.list[str]:
+    volumes = client.volumes.list(filters={"label": RIPTIDE_DOCKER_LABEL_IS_RIPTIDE})
     volumes_wo_prefix = []
     len_prefix = len(NAMED_VOLUME_INTERNAL_PREFIX)
     for v in volumes:
@@ -48,12 +51,12 @@ def copy(client: DockerClient, from_name: str, target_name: str) -> None:
     if exists(client, target_name):
         raise FileExistsError(f"The named volume {target_name} already exists.")
 
-    builder = ContainerBuilder(PATH_UTILS_IMAGE, 'cp -a /copy_from/. /copy_to/')
-    builder.set_named_volume_mount(from_name, '/copy_from', 'rw')
-    builder.set_named_volume_mount(target_name, '/copy_to', 'rw')
+    builder = ContainerBuilder(PATH_UTILS_IMAGE, "cp -a /copy_from/. /copy_to/")
+    builder.set_named_volume_mount(from_name, "/copy_from", "rw")
+    builder.set_named_volume_mount(target_name, "/copy_to", "rw")
 
     try:
-        container = client.containers.create(**builder.build_docker_api())
+        container = client.containers.create(**builder.build_docker_api())  # type: ignore
         container.start()
         container.remove(force=True)
     except ContainerError as err:

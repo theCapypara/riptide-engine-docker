@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "riptide-lib >= 0.10, < 0.11",
@@ -35,3 +36,16 @@ docker = "riptide_engine_docker.engine:DockerEngine"
 
 [project.entry-points."riptide.engine.tests"]
 docker = "riptide_engine_docker.tests.integration.tester:DockerEngineTester"
+
+[tool.ruff]
+line-length = 120
+
+[tools.ruff.lint]
+select = ["W", "E", "F", "ARG"]
+
+[tool.mypy]
+warn_unused_configs = true
+mypy_path = "."
+explicit_package_bases = true
+namespace_packages = true
+check_untyped_defs = true

@@ -3,7 +3,7 @@
 ## RUN TESTS (Linux only)
 #
 # This will run all (unit) tests in this project. Integration tests can be run via the Riptide Lib repo.
-# The tests are run on Python versions 3.6 - 3.7.
+# The tests are run on Python versions 3.11 - 3.x.
 # See tox.ini for details :)
 #
 # For these tests to run, you need to have Docker installed. The tests will use a Docker image found in
@@ -15,8 +15,7 @@
 #
 # If you have problems, try to delete the .tox directory.
 #
-# This script is not used in CI, see Jenkinsfile instead.
-#
+set -e
 
 # 1. Build the runner image...
 mkdir -p /tmp/riptide-docker-tox

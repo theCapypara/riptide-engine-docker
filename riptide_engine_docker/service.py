@@ -1,26 +1,39 @@
 import copy
 import json
-from time import sleep
 import threading
+from json import JSONDecodeError
+from time import sleep
 
 from docker import DockerClient
-from docker.errors import NotFound, APIError, ContainerError
-from json import JSONDecodeError
-
+from docker.errors import APIError, ContainerError, NotFound
 from riptide.config.document.config import Config
 from riptide.config.document.service import Service
-
-from riptide_engine_docker.container_builder import get_network_name, get_service_container_name, \
-    ContainerBuilder, RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, EENV_NO_STDOUT_REDIRECT, EENV_ORIGINAL_ENTRYPOINT, \
-    EENV_RUN_MAIN_CMD_AS_USER, EENV_USER, EENV_GROUP
-from riptide.engine.results import ResultQueue, ResultError, StartStopResultStep
-from riptide.lib.cross_platform.cpuser import getuid, getgid
+from riptide.engine.results import ResultError, ResultQueue, StartStopResultStep
+from riptide.lib.cross_platform.cpuser import getgid, getuid
+from riptide_engine_docker.container_builder import (
+    EENV_GROUP,
+    EENV_NO_STDOUT_REDIRECT,
+    EENV_ORIGINAL_ENTRYPOINT,
+    EENV_RUN_MAIN_CMD_AS_USER,
+    EENV_USER,
+    RIPTIDE_DOCKER_LABEL_IS_RIPTIDE,
+    ContainerBuilder,
+    get_network_name,
+    get_service_container_name,
+)
 from riptide_engine_docker.network import add_network_links
 
 start_lock = threading.Lock()
 
 
-def start(project_name: str, service: Service, command_group: str, client: DockerClient, queue: ResultQueue, quick=False):
+def start(
+    project_name: str,
+    service: Service,
+    command_group: str,
+    client: DockerClient,
+    queue: ResultQueue[StartStopResultStep],
+    quick=False,
+):
     """
     Starts the given service by starting the container (if not already started).
 
@@ -41,7 +54,7 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
     needs_to_be_started = False
 
     # 1. Check if already running
-    queue.put(StartStopResultStep(current_step=1, steps=None, text='Checking...'))
+    queue.put(StartStopResultStep(current_step=1, steps=None, text="Checking..."))
     try:
         container = client.containers.get(name)
         if container.status != "running":
@@ -55,7 +68,6 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
         return
 
     if needs_to_be_started:
-
         # Number of steps for progress bar:
         # check + image pull + start + check + 1 for each pre_start/post_start + "started"
         if not quick:
@@ -72,16 +84,32 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
         except NotFound:
             try:
                 queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... "))
-                image_name_full = service['image'] if ":" in service['image'] else service['image'] + ":latest"
+                image_name_full = service["image"] if ":" in service["image"] else service["image"] + ":latest"
                 for line in client.api.pull(image_name_full, stream=True):
                     try:
                         status = json.loads(line)
                         if "progress" in status:
-                            queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... " + status["status"] + " : " + status["progress"]))
+                            queue.put(
+                                StartStopResultStep(
+                                    current_step=current_step,
+                                    steps=step_count,
+                                    text="Pulling image... " + status["status"] + " : " + status["progress"],
+                                )
+                            )
                         else:
-                            queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... " + status["status"]))
+                            queue.put(
+                                StartStopResultStep(
+                                    current_step=current_step,
+                                    steps=step_count,
+                                    text="Pulling image... " + status["status"],
+                                )
+                            )
                     except JSONDecodeError:
-                        queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... " + str(line)))
+                        queue.put(
+                            StartStopResultStep(
+                                current_step=current_step, steps=step_count, text="Pulling image... " + str(line)
+                            )
+                        )
             except APIError as err:
                 queue.end_with_error(ResultError("ERROR pulling image.", cause=err))
                 stop(project_name, service["$name"], client)
@@ -97,7 +125,7 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
 
             builder.set_name(name)
             builder.init_from_service(service, image_config)
-            builder.set_hostname(service['$name'])
+            builder.set_hostname(service["$name"])
             # If src role is set, change workdir
             builder.set_workdir(service.get_working_directory())
         except Exception as ex:
@@ -124,30 +152,40 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
 
                     # Fork built container configuration and adjust it for pre start container
                     pre_start_config = copy.deepcopy(builder.build_docker_api())
-                    pre_start_config.update({
-                        'name': name + "__pre_start" + str(cmd_no),
-                        'network': get_network_name(project_name),
-                        # Don't use ports and labels of actual service container
-                        'ports': None,
-                        'labels': {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1'}
-                    })
-                    if service["run_pre_start_as_current_user"] and EENV_RUN_MAIN_CMD_AS_USER not in pre_start_config['environment']:
+                    pre_start_config.update(
+                        {
+                            "name": name + "__pre_start" + str(cmd_no),
+                            "network": get_network_name(project_name),
+                            # Don't use ports and labels of actual service container
+                            "ports": None,
+                            "labels": {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"},
+                        }
+                    )
+                    if (
+                        service["run_pre_start_as_current_user"]
+                        and EENV_RUN_MAIN_CMD_AS_USER not in pre_start_config["environment"]
+                    ):
                         # Run with the current system user
-                        pre_start_config['environment'][EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-                        pre_start_config['environment'][EENV_USER] = str(getuid())
-                        pre_start_config['environment'][EENV_GROUP] = str(getgid())
-                    elif not service["run_pre_start_as_current_user"] and EENV_RUN_MAIN_CMD_AS_USER in pre_start_config['environment']:
-                        del pre_start_config['environment'][EENV_RUN_MAIN_CMD_AS_USER]
-                    pre_start_config['environment'][EENV_NO_STDOUT_REDIRECT] = '1'
-                    pre_start_config['environment'][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
+                        pre_start_config["environment"][EENV_RUN_MAIN_CMD_AS_USER] = "yes"
+                        pre_start_config["environment"][EENV_USER] = str(getuid())
+                        pre_start_config["environment"][EENV_GROUP] = str(getgid())
+                    elif (
+                        not service["run_pre_start_as_current_user"]
+                        and EENV_RUN_MAIN_CMD_AS_USER in pre_start_config["environment"]
+                    ):
+                        del pre_start_config["environment"][EENV_RUN_MAIN_CMD_AS_USER]
+                    pre_start_config["environment"][EENV_NO_STDOUT_REDIRECT] = "1"
+                    pre_start_config["environment"][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
 
                     # RUN
-                    container = client.containers.create(**pre_start_config)
+                    container = client.containers.create(**pre_start_config)  # type: ignore
                     add_network_links(client, container, None, service.get_project()["links"])
                     container.start()
                     exit_code = container.wait()
                     if exit_code["StatusCode"] != 0:
-                        raise ContainerError(container, exit_code["StatusCode"], cmd, service["image"], container.logs(stdout=False))
+                        raise ContainerError(
+                            container, exit_code["StatusCode"], cmd, service["image"], str(container.logs(stdout=False))
+                        )
 
                 except (APIError, ContainerError) as err:
                     queue.end_with_error(ResultError("ERROR running pre start command '" + cmd + "'.", cause=err))
@@ -163,7 +201,7 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
             with start_lock:
                 builder.service_add_main_port(service)
                 # CREATE
-                container = client.containers.create(**builder.build_docker_api())
+                container = client.containers.create(**builder.build_docker_api())  # type: ignore
                 # Add container to link networks
                 add_network_links(client, container, service["$name"], service.get_project()["links"])
                 # Add container to main network
@@ -182,7 +220,9 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
             container = client.containers.get(name)
             if container.status == "exited":
                 extra = " Try 'run_as_current_user': false" if service["run_as_current_user"] else ""
-                queue.end_with_error(ResultError("ERROR: Container crashed." + extra, details=container.logs().decode("utf-8")))
+                queue.end_with_error(
+                    ResultError("ERROR: Container crashed." + extra, details=container.logs().decode("utf-8"))
+                )
                 container.remove()
                 return
         except NotFound:
@@ -201,7 +241,7 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
                         cmd=["/bin/sh", "-c", cmd],
                         detach=False,
                         tty=True,
-                        user=str(getuid()) if service['run_post_start_as_current_user'] else None
+                        user=str(getuid()) if service["run_post_start_as_current_user"] else "",
                     )
                 except (APIError, ContainerError) as err:
                     queue.end_with_error(ResultError("ERROR running post start command '" + cmd + "'.", cause=err))
@@ -212,11 +252,13 @@ def start(project_name: str, service: Service, command_group: str, client: Docke
         current_step += 1
         queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Started!"))
     else:
-        queue.put(StartStopResultStep(current_step=2, steps=2, text='Already started!'))
+        queue.put(StartStopResultStep(current_step=2, steps=2, text="Already started!"))
     queue.end()
 
 
-def stop(project_name: str, service_name: str, client: DockerClient, queue: ResultQueue=None):
+def stop(
+    project_name: str, service_name: str, client: DockerClient, queue: ResultQueue[StartStopResultStep] | None = None
+):
     """
     Stops the given service by stopping the container (if not already started).
 
@@ -228,24 +270,25 @@ def stop(project_name: str, service_name: str, client: DockerClient, queue: Resu
 
     :param project_name:    Name of the project to start
     :param service_name:    Name of the service to start
+    :param client:          Docker client
     :param queue:           ResultQueue to update, or None
     """
     name = get_service_container_name(project_name, service_name)
     # 1. Check if already running
     if queue:
-        queue.put(StartStopResultStep(current_step=1, steps=None, text='Checking...'))
+        queue.put(StartStopResultStep(current_step=1, steps=None, text="Checking..."))
     try:
         container = client.containers.get(name)
         # 2. Stop
         if queue:
-            queue.put(StartStopResultStep(current_step=2, steps=3, text='Stopping...'))
+            queue.put(StartStopResultStep(current_step=2, steps=3, text="Stopping..."))
         container.stop()
         container.remove()
         if queue:
-            queue.put(StartStopResultStep(current_step=3, steps=3, text='Stopped!'))
+            queue.put(StartStopResultStep(current_step=3, steps=3, text="Stopped!"))
     except NotFound:
         if queue:
-            queue.put(StartStopResultStep(current_step=2, steps=2, text='Already stopped!'))
+            queue.put(StartStopResultStep(current_step=2, steps=2, text="Already stopped!"))
     except APIError as err:
         if queue:
             queue.end_with_error(ResultError("ERROR checking container status.", cause=err))
