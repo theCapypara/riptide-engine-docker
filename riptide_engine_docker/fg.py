@@ -160,9 +160,14 @@ def fg(
     # Add the container link networks after docker run started... I tried a combo of Docker API create and Docker CLI
     # start to make it cleaner, but 'docker start' does not work well for interactive commands at all,
     # so that's the best we can do
-    AddNetLinks(container_name, client, project["links"]).start()
+    poison_bottle = {"poisoned": False}  # this is poisoned if spawning fails so that the other thread doesn't stall
+    AddNetLinks(container_name, client, project["links"], poison_bottle).start()
 
-    return _spawn(builder.build_docker_cli())
+    try:
+        return _spawn(builder.build_docker_cli())
+    except:
+        poison_bottle["poisoned"] = True
+        raise
 
 
 def _spawn(shell: list[str]) -> int:
@@ -170,22 +175,35 @@ def _spawn(shell: list[str]) -> int:
     return pty.spawn(shell, win_repeat_argv0=True) >> 8
 
 
-def _wait_until_container_exists(client, container_name):
+MAX_RETRIES = 1500
+
+
+def _wait_until_container_exists(retry, client, container_name, poison_bottle):
+    if poison_bottle["poisoned"]:
+        return None
     try:
         container = client.containers.get(container_name)
     except NotFound:
+        if retry > MAX_RETRIES:
+            print(
+                "Riptide: Was unable to add container to container network. Networking might not work correctly.",
+                file=sys.stderr,
+            )
+            return None
         sleep(0.0025)
-        return _wait_until_container_exists(client, container_name)
+        return _wait_until_container_exists(retry + 1, client, container_name, poison_bottle)
     return container
 
 
 class AddNetLinks(threading.Thread):
-    def __init__(self, container_name, client, links):
+    def __init__(self, container_name, client, links, poison_bottle):
         threading.Thread.__init__(self)
         self.links = links
         self.client = client
         self.container_name = container_name
+        self.poison_bottle = poison_bottle
 
     def run(self):
-        container = _wait_until_container_exists(self.client, self.container_name)
-        add_network_links(self.client, container, None, self.links)
+        container = _wait_until_container_exists(0, self.client, self.container_name, self.poison_bottle)
+        if container is not None:
+            add_network_links(self.client, container, None, self.links)
