@@ -160,14 +160,9 @@ def fg(
     # Add the container link networks after docker run started... I tried a combo of Docker API create and Docker CLI
     # start to make it cleaner, but 'docker start' does not work well for interactive commands at all,
     # so that's the best we can do
-    poison_bottle = {"poisoned": False}  # this is poisoned if spawning fails so that the other thread doesn't stall
-    AddNetLinks(container_name, client, project["links"], poison_bottle).start()
+    AddNetLinks(container_name, client, project["links"]).start()
 
-    try:
-        return _spawn(builder.build_docker_cli())
-    except:
-        poison_bottle["poisoned"] = True
-        raise
+    return _spawn(builder.build_docker_cli())
 
 
 def _spawn(shell: list[str]) -> int:
@@ -178,32 +173,31 @@ def _spawn(shell: list[str]) -> int:
 MAX_RETRIES = 1500
 
 
-def _wait_until_container_exists(retry, client, container_name, poison_bottle):
-    if poison_bottle["poisoned"]:
-        return None
-    try:
-        container = client.containers.get(container_name)
-    except NotFound:
-        if retry > MAX_RETRIES:
-            print(
-                "Riptide: Was unable to add container to container network. Networking might not work correctly.",
-                file=sys.stderr,
-            )
-            return None
-        sleep(0.0025)
-        return _wait_until_container_exists(retry + 1, client, container_name, poison_bottle)
-    return container
+def _wait_until_container_exists(client, container_name):
+    retry = 0
+    while True:
+        try:
+            container = client.containers.get(container_name)
+            return container
+        except NotFound:
+            if retry > MAX_RETRIES:
+                print(
+                    "Riptide: Was unable to add container to container network. Networking might not work correctly.",
+                    file=sys.stderr,
+                )
+                return None
+            retry += 1
+            sleep(0.0025)
 
 
 class AddNetLinks(threading.Thread):
-    def __init__(self, container_name, client, links, poison_bottle):
+    def __init__(self, container_name, client, links):
         threading.Thread.__init__(self)
         self.links = links
         self.client = client
         self.container_name = container_name
-        self.poison_bottle = poison_bottle
 
     def run(self):
-        container = _wait_until_container_exists(0, self.client, self.container_name, self.poison_bottle)
+        container = _wait_until_container_exists(self.client, self.container_name)
         if container is not None:
             add_network_links(self.client, container, None, self.links)
