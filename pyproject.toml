@@ -31,6 +31,9 @@ dependencies = [
 Repository = "https://github.com/theCapypara/riptide-engine-docker"
 Documentation = "https://riptide-docs.readthedocs.io"
 
+[tool.setuptools.packages.find]
+exclude = ["test_assets", "test_reports"]
+
 [project.entry-points."riptide.engine"]
 docker = "riptide_engine_docker.engine:DockerEngine"
 
