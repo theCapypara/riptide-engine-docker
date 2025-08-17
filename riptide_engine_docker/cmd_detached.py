@@ -10,7 +10,6 @@ from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.container_builder import (
     EENV_GROUP,
     EENV_NO_STDOUT_REDIRECT,
-    EENV_RUN_MAIN_CMD_AS_USER,
     EENV_USER,
     ContainerBuilder,
     get_network_name,
@@ -42,7 +41,7 @@ def cmd_detached(client: DockerClient, project: Project, command: Command, run_a
 
     builder.init_from_command(command, image_config)
     if not run_as_root:
-        builder.set_env(EENV_RUN_MAIN_CMD_AS_USER, "yes")
+        builder.switch_to_normal_user(image_config)
         builder.set_env(EENV_USER, str(getuid()))
         builder.set_env(EENV_GROUP, str(getgid()))
 
