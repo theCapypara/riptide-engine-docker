@@ -14,6 +14,7 @@ from riptide.config.hosts import get_localhost_hosts
 from riptide.config.service.ports import find_open_port_starting_at
 from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.config import get_image_platform
 
 ENTRYPOINT_SH = "entrypoint.sh"
 
@@ -62,6 +63,7 @@ class DockerContainerCreate(TypedDict, total=False):
     environment: dict[str, str]
     labels: dict[str, str]
     mounts: list[Mount]
+    platform: str | None
 
 
 class ContainerBuilder:
@@ -370,6 +372,10 @@ class ContainerBuilder:
 
         args["mounts"] = list(self.mounts.values())
 
+        image_platform = get_image_platform()
+        if image_platform is not None:
+            args["platform"] = image_platform
+
         return args
 
     def build_docker_cli(self) -> list[str]:
@@ -436,6 +442,10 @@ class ContainerBuilder:
             # On Ubuntu and possibly other distros:
             if self.on_linux:
                 shell += ["--security-opt", "apparmor:unconfined"]
+
+        image_platform = get_image_platform()
+        if image_platform is not None:
+            shell += [f"--platform={image_platform}"]
 
         command = self.command
         if command is None:
