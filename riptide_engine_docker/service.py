@@ -166,7 +166,7 @@ def start(
                         and EENV_RUN_MAIN_CMD_AS_USER not in pre_start_config["environment"]
                     ):
                         # Run with the current system user
-                        pre_start_config["environment"][EENV_RUN_MAIN_CMD_AS_USER] = "yes"
+                        builder.switch_to_normal_user(image_config)
                         pre_start_config["environment"][EENV_USER] = str(getuid())
                         pre_start_config["environment"][EENV_GROUP] = str(getgid())
                     elif (

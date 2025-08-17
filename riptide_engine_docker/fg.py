@@ -13,7 +13,6 @@ from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.container_builder import (
     EENV_GROUP,
     EENV_NO_STDOUT_REDIRECT,
-    EENV_RUN_MAIN_CMD_AS_USER,
     EENV_USER,
     ContainerBuilder,
     get_cmd_container_name,
@@ -152,7 +151,7 @@ def fg(
         builder.service_add_main_port(exec_object)
     else:
         builder.init_from_command(exec_object, image_config)
-        builder.set_env(EENV_RUN_MAIN_CMD_AS_USER, "yes")
+        builder.switch_to_normal_user(image_config)
         builder.set_env(EENV_USER, str(getuid()))
         builder.set_env(EENV_GROUP, str(getgid()))
 
@@ -166,8 +165,7 @@ def fg(
 
 
 def _spawn(shell: list[str]) -> int:
-    # XXX: Needs to be shifted by 1 byte because the return value of os.waitpid is shifted for some reason???
-    return pty.spawn(shell, win_repeat_argv0=True) >> 8
+    return pty.spawn(shell, win_repeat_argv0=True)
 
 
 MAX_RETRIES = 1500

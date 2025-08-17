@@ -2,6 +2,7 @@
 
 import os
 import platform
+import sys
 from collections import OrderedDict
 from pathlib import PurePosixPath
 from typing import TypeAlias, TypedDict
@@ -23,6 +24,7 @@ RIPTIDE_DOCKER_LABEL_MAIN = "riptide_main"
 RIPTIDE_DOCKER_LABEL_HTTP_PORT = "riptide_port"
 
 ENTRYPOINT_CONTAINER_PATH = "/entrypoint_riptide.sh"
+RIPSU_CONTAINER_PATH = "/ripsu"
 EENV_DONT_RUN_CMD = "RIPTIDE__DOCKER_DONT_RUN_CMD"
 EENV_USER = "RIPTIDE__DOCKER_USER"
 EENV_USER_RUN = "RIPTIDE__DOCKER_USER_RUN"
@@ -35,6 +37,7 @@ EENV_NAMED_VOLUMES = "RIPTIDE__DOCKER_NAMED_VOLUMES"
 EENV_ON_LINUX = "RIPTIDE__DOCKER_ON_LINUX"
 EENV_HOST_SYSTEM_HOSTNAMES = "RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES"
 EENV_OVERLAY_TARGETS = "RIPTIDE__DOCKER_OVERLAY_TARGETS"
+EENV_USE_RIPSU = "RIPTIDE__USE_RIPSU"
 
 # For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
@@ -238,12 +241,20 @@ class ContainerBuilder:
         ports = service.collect_ports()
         # All command logging commands are added as environment variables for the
         # riptide entrypoint
-        environment_updates = service_collect_logging_commands(service)
-        # User settings for the entrypoint
-        environment_updates.update(service_collect_entrypoint_user_settings(service, getuid(), getgid(), image_config))
-        # Add to builder
-        for key, value in environment_updates.items():
+        for key, value in service_collect_logging_commands(service).items():
             self.set_env(key, value)
+        # User settings for the entrypoint
+        if not service["dont_create_user"]:
+            self.set_env(EENV_USER, str(getuid()))
+            self.set_env(EENV_GROUP, str(getgid()))
+        if service["run_as_current_user"]:
+            # Run with the current system user
+            self.switch_to_normal_user(image_config)
+        elif "User" in image_config and image_config["User"] != "":
+            # If run_as_current_user is false and an user is configured in the image config, tell the entrypoint to run
+            # with this user
+            self.switch_to_normal_user(image_config)
+            self.set_env(EENV_USER_RUN, image_config["User"])
         for name, val in labels.items():
             self.set_label(name, val)
         for container, host in ports.items():
@@ -282,6 +293,16 @@ class ContainerBuilder:
             project_absolute_unimportant_paths,
         )
         return self
+
+    def switch_to_normal_user(self, image_config):
+        self.set_env(EENV_RUN_MAIN_CMD_AS_USER, "yes")
+        architecture = "amd64"
+        if "Architecture" in image_config:
+            architecture = image_config["Architecture"]
+        if architecture in ("amd64", "arm64"):
+            self.set_env(EENV_USE_RIPSU, "yes")
+            ripsu_path = os.path.join(riptide_engine_docker_assets_dir(), "ripsu", f"ripsu-{architecture}")
+            self.set_mount(ripsu_path, RIPSU_CONTAINER_PATH, "ro")
 
     def build_docker_api(self) -> DockerContainerCreate:
         """
@@ -355,7 +376,9 @@ class ContainerBuilder:
         """
         Build the docker container in the form of a Docker CLI command.
         """
-        shell = ["docker", "run", "--rm", "-it"]
+        shell = ["docker", "run", "--rm", "-i"]
+        if sys.stdin.isatty():
+            shell += ["-t"]
         if self.name:
             shell += ["--name", self.name]
 
@@ -475,25 +498,6 @@ def service_collect_logging_commands(service: Service) -> dict:
         commands = service["logging"]["commands"]
         for cmdname, command in {k: commands[k] for k in sorted(commands)}.items():
             environment[EENV_COMMAND_LOG_PREFIX + cmdname] = command
-    return environment
-
-
-def service_collect_entrypoint_user_settings(service: Service, user, user_group, image_config) -> dict:
-    environment = {}
-
-    if not service["dont_create_user"]:
-        environment[EENV_USER] = str(user)
-        environment[EENV_GROUP] = str(user_group)
-
-    if service["run_as_current_user"]:
-        # Run with the current system user
-        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-    elif "User" in image_config and image_config["User"] != "":
-        # If run_as_current_user is false and an user is configured in the image config, tell the entrypoint to run
-        # with this user
-        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-        environment[EENV_USER_RUN] = image_config["User"]
-
     return environment
 
 
