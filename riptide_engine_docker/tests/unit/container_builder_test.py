@@ -19,10 +19,12 @@ from riptide_engine_docker.container_builder import (
     EENV_ORIGINAL_ENTRYPOINT,
     EENV_OVERLAY_TARGETS,
     EENV_RUN_MAIN_CMD_AS_USER,
+    EENV_USE_RIPSU,
     EENV_USER,
     EENV_USER_RUN,
     ENTRYPOINT_CONTAINER_PATH,
     ENTRYPOINT_SH,
+    RIPSU_CONTAINER_PATH,
     RIPTIDE_DOCKER_LABEL_HTTP_PORT,
     RIPTIDE_DOCKER_LABEL_IS_RIPTIDE,
     RIPTIDE_DOCKER_LABEL_MAIN,
@@ -48,7 +50,7 @@ class ContainerBuilderTest(unittest.TestCase):
             "ports": {},
             "labels": {"riptide": "1"},
         }
-        self.expected_cli_base = ["docker", "run", "--rm", "-it"]
+        self.expected_cli_base = ["docker", "run", "--rm", "-i"]
 
     def test_simple(self):
         """Test only with values from constructor"""
@@ -67,6 +69,24 @@ class ContainerBuilderTest(unittest.TestCase):
         ]
         actual_cli = self.fix.build_docker_cli()
         self.assertListEqual(actual_cli, expected_cli)
+
+    @mock.patch("sys.stdin.isatty", return_value=True)
+    def test_tty(self, isatty_mock: Mock):
+        """Test when run from a TTY"""
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            "-t",
+            "-e",
+            EENV_ON_LINUX + "=1",
+            "--label",
+            "riptide=1",
+            IMAGE_NAME,
+            COMMAND,
+        ]
+        actual_cli = self.fix.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+        isatty_mock.assert_called()
 
     def test_command_list(self):
         test_obj = ContainerBuilder(image=IMAGE_NAME, command=[COMMAND, "elem2"])
@@ -710,11 +730,12 @@ class ContainerBuilderTest(unittest.TestCase):
         project_stub.freeze()
         service_stub.freeze()
 
-        image_config_mock = {"Entrypoint": "", "User": "12345"}
+        image_config_mock = {"Entrypoint": "", "User": "12345", "Architecture": "amd64"}
 
         self.fix.init_from_service(service_stub, image_config_mock)
 
         expected_entrypoint_host_path = os.path.join(EADMOCK, ENTRYPOINT_SH)
+        expected_ripsu_host_path = os.path.join(EADMOCK, "ripsu", "ripsu-amd64")
         # Test API build
         self.expected_api_base.update(
             {
@@ -731,6 +752,13 @@ class ContainerBuilderTest(unittest.TestCase):
                     ),
                     Mount(target="bind1", source="host1", type="bind", read_only=True, consistency="delegated"),
                     Mount(target="bind2", source="host2", type="bind", read_only=False, consistency="delegated"),
+                    Mount(
+                        target=RIPSU_CONTAINER_PATH,
+                        source=expected_ripsu_host_path,
+                        type="bind",
+                        read_only=True,
+                        consistency="delegated",
+                    ),
                 ],
                 "environment": {
                     EENV_ORIGINAL_ENTRYPOINT: "",
@@ -739,6 +767,7 @@ class ContainerBuilderTest(unittest.TestCase):
                     EENV_USER: "9898",
                     EENV_GROUP: "8989",
                     EENV_RUN_MAIN_CMD_AS_USER: "yes",
+                    EENV_USE_RIPSU: "yes",
                     "key1": "value1",
                     "key2": "value2",
                     EENV_ON_LINUX: "1",
@@ -788,6 +817,8 @@ class ContainerBuilderTest(unittest.TestCase):
             EENV_GROUP + "=8989",
             "-e",
             EENV_RUN_MAIN_CMD_AS_USER + "=yes",
+            "-e",
+            EENV_USE_RIPSU + "=yes",
             "--label",
             RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + "=1",
             "--label",
@@ -802,6 +833,8 @@ class ContainerBuilderTest(unittest.TestCase):
             "type=bind,dst=bind1,src=host1,ro=1",
             "--mount",
             "type=bind,dst=bind2,src=host2,ro=0",
+            "--mount",
+            f"type=bind,dst={RIPSU_CONTAINER_PATH},src={expected_ripsu_host_path},ro=1",
             IMAGE_NAME,
             COMMAND,
         ]
@@ -813,11 +846,16 @@ class ContainerBuilderTest(unittest.TestCase):
     @mock.patch("riptide_engine_docker.container_builder.getuid", return_value=9898)
     @mock.patch("riptide_engine_docker.container_builder.getgid", return_value=8989)
     @mock.patch("riptide_engine_docker.container_builder.get_localhost_hosts", return_value=GET_LOCALHOSTS_HOSTS_RETURN)
-    def test_init_from_service_current_user_main_service(self, *args, **kwargs):
+    def test_init_from_service_weird_image_arch(self, *args, **kwargs):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
-            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": True, "dont_create_user": False}
+            {
+                "$name": "SERVICENAME",
+                "roles": [],
+                "run_as_current_user": True,
+                "dont_create_user": False,
+            }
         )
         config_stub = YamlConfigDocumentStub.make(
             {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
@@ -832,7 +870,7 @@ class ContainerBuilderTest(unittest.TestCase):
         project_stub.freeze()
         service_stub.freeze()
 
-        image_config_mock = {"Entrypoint": "", "User": "12345"}
+        image_config_mock = {"Entrypoint": "", "User": "12345", "Architecture": "weird"}
 
         self.fix.init_from_service(service_stub, image_config_mock)
 
@@ -842,6 +880,7 @@ class ContainerBuilderTest(unittest.TestCase):
             {
                 "user": 0,
                 "entrypoint": [ENTRYPOINT_CONTAINER_PATH],
+                "ports": {},
                 "mounts": [
                     Mount(
                         target=ENTRYPOINT_CONTAINER_PATH,
@@ -849,7 +888,7 @@ class ContainerBuilderTest(unittest.TestCase):
                         type="bind",
                         read_only=True,
                         consistency="delegated",
-                    )
+                    ),
                 ],
                 "environment": {
                     EENV_ORIGINAL_ENTRYPOINT: "",
@@ -862,7 +901,7 @@ class ContainerBuilderTest(unittest.TestCase):
                 },
                 "labels": {
                     RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1",
-                    RIPTIDE_DOCKER_LABEL_MAIN: "1",
+                    RIPTIDE_DOCKER_LABEL_MAIN: "0",
                     RIPTIDE_DOCKER_LABEL_PROJECT: "PROJECTNAME",
                     RIPTIDE_DOCKER_LABEL_SERVICE: "SERVICENAME",
                 },
@@ -898,9 +937,121 @@ class ContainerBuilderTest(unittest.TestCase):
             "--label",
             RIPTIDE_DOCKER_LABEL_SERVICE + "=SERVICENAME",
             "--label",
+            RIPTIDE_DOCKER_LABEL_MAIN + "=0",
+            "--mount",
+            f"type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1",
+            IMAGE_NAME,
+            COMMAND,
+        ]
+        actual_cli = self.fix.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
+    @mock.patch("riptide_engine_docker.container_builder.riptide_engine_docker_assets_dir", return_value=EADMOCK)
+    @mock.patch("platform.system", return_value="Linux")
+    @mock.patch("riptide_engine_docker.container_builder.getuid", return_value=9898)
+    @mock.patch("riptide_engine_docker.container_builder.getgid", return_value=8989)
+    @mock.patch("riptide_engine_docker.container_builder.get_localhost_hosts", return_value=GET_LOCALHOSTS_HOSTS_RETURN)
+    def test_init_from_service_current_user_main_service(self, *args, **kwargs):
+        self.maxDiff = None
+
+        service_stub = YamlConfigDocumentStub.make(
+            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": True, "dont_create_user": False}
+        )
+        config_stub = YamlConfigDocumentStub.make(
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+        )
+        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+
+        service_stub.collect_ports = MagicMock(return_value={})
+        service_stub.collect_volumes = MagicMock(return_value={})
+        service_stub.collect_environment = MagicMock(return_value={})
+        service_stub.get_project = MagicMock(return_value=project_stub)
+        config_stub.freeze()
+        project_stub.freeze()
+        service_stub.freeze()
+
+        image_config_mock = {"Entrypoint": "", "User": "12345", "Architecture": "arm64"}
+
+        self.fix.init_from_service(service_stub, image_config_mock)
+
+        expected_entrypoint_host_path = os.path.join(EADMOCK, ENTRYPOINT_SH)
+        expected_ripsu_host_path = os.path.join(EADMOCK, "ripsu", "ripsu-arm64")
+        # Test API build
+        self.expected_api_base.update(
+            {
+                "user": 0,
+                "entrypoint": [ENTRYPOINT_CONTAINER_PATH],
+                "mounts": [
+                    Mount(
+                        target=ENTRYPOINT_CONTAINER_PATH,
+                        source=expected_entrypoint_host_path,
+                        type="bind",
+                        read_only=True,
+                        consistency="delegated",
+                    ),
+                    Mount(
+                        target=RIPSU_CONTAINER_PATH,
+                        source=expected_ripsu_host_path,
+                        type="bind",
+                        read_only=True,
+                        consistency="delegated",
+                    ),
+                ],
+                "environment": {
+                    EENV_ORIGINAL_ENTRYPOINT: "",
+                    EENV_USER: "9898",
+                    EENV_GROUP: "8989",
+                    EENV_RUN_MAIN_CMD_AS_USER: "yes",
+                    EENV_ON_LINUX: "1",
+                    EENV_HOST_SYSTEM_HOSTNAMES: " ".join(GET_LOCALHOSTS_HOSTS_RETURN),
+                    EENV_OVERLAY_TARGETS: "",
+                    EENV_USE_RIPSU: "yes",
+                },
+                "labels": {
+                    RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1",
+                    RIPTIDE_DOCKER_LABEL_MAIN: "1",
+                    RIPTIDE_DOCKER_LABEL_PROJECT: "PROJECTNAME",
+                    RIPTIDE_DOCKER_LABEL_SERVICE: "SERVICENAME",
+                },
+            }
+        )
+        actual_api = self.fix.build_docker_api()
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            "--entrypoint",
+            ENTRYPOINT_CONTAINER_PATH,
+            "-u",
+            "0",
+            "-e",
+            EENV_ON_LINUX + "=1",
+            "-e",
+            EENV_ORIGINAL_ENTRYPOINT + "=",
+            "-e",
+            EENV_HOST_SYSTEM_HOSTNAMES + "=" + " ".join(GET_LOCALHOSTS_HOSTS_RETURN),
+            "-e",
+            EENV_OVERLAY_TARGETS + "=",
+            "-e",
+            EENV_USER + "=9898",
+            "-e",
+            EENV_GROUP + "=8989",
+            "-e",
+            EENV_RUN_MAIN_CMD_AS_USER + "=yes",
+            "-e",
+            EENV_USE_RIPSU + "=yes",
+            "--label",
+            RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + "=1",
+            "--label",
+            RIPTIDE_DOCKER_LABEL_PROJECT + "=PROJECTNAME",
+            "--label",
+            RIPTIDE_DOCKER_LABEL_SERVICE + "=SERVICENAME",
+            "--label",
             RIPTIDE_DOCKER_LABEL_MAIN + "=1",
             "--mount",
             f"type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1",
+            "--mount",
+            f"type=bind,dst={RIPSU_CONTAINER_PATH},src={expected_ripsu_host_path},ro=1",
             IMAGE_NAME,
             COMMAND,
         ]
@@ -937,6 +1088,7 @@ class ContainerBuilderTest(unittest.TestCase):
         self.fix.init_from_service(service_stub, image_config_mock)
 
         expected_entrypoint_host_path = os.path.join(EADMOCK, ENTRYPOINT_SH)
+        expected_ripsu_host_path = os.path.join(EADMOCK, "ripsu", "ripsu-amd64")
         # Test API build
         self.expected_api_base.update(
             {
@@ -949,7 +1101,14 @@ class ContainerBuilderTest(unittest.TestCase):
                         type="bind",
                         read_only=True,
                         consistency="delegated",
-                    )
+                    ),
+                    Mount(
+                        target=RIPSU_CONTAINER_PATH,
+                        source=expected_ripsu_host_path,
+                        type="bind",
+                        read_only=True,
+                        consistency="delegated",
+                    ),
                 ],
                 "environment": {
                     EENV_ORIGINAL_ENTRYPOINT: "",
@@ -960,6 +1119,7 @@ class ContainerBuilderTest(unittest.TestCase):
                     EENV_ON_LINUX: "1",
                     EENV_HOST_SYSTEM_HOSTNAMES: " ".join(GET_LOCALHOSTS_HOSTS_RETURN),
                     EENV_OVERLAY_TARGETS: "",
+                    EENV_USE_RIPSU: "yes",
                 },
                 "labels": {
                     RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1",
@@ -993,6 +1153,8 @@ class ContainerBuilderTest(unittest.TestCase):
             "-e",
             EENV_RUN_MAIN_CMD_AS_USER + "=yes",
             "-e",
+            EENV_USE_RIPSU + "=yes",
+            "-e",
             EENV_USER_RUN + "=12345",
             "--label",
             RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + "=1",
@@ -1004,6 +1166,8 @@ class ContainerBuilderTest(unittest.TestCase):
             RIPTIDE_DOCKER_LABEL_MAIN + "=1",
             "--mount",
             f"type=bind,dst={ENTRYPOINT_CONTAINER_PATH},src={expected_entrypoint_host_path},ro=1",
+            "--mount",
+            f"type=bind,dst={RIPSU_CONTAINER_PATH},src={expected_ripsu_host_path},ro=1",
             IMAGE_NAME,
             COMMAND,
         ]
@@ -1239,6 +1403,7 @@ class ContainerBuilderTest(unittest.TestCase):
         self.fix.init_from_service(service_stub, image_config_mock)
 
         expected_entrypoint_host_path = os.path.join(EADMOCK, ENTRYPOINT_SH)
+        expected_ripsu_host_path = os.path.join(EADMOCK, "ripsu", "ripsu-amd64")
         # Test API build
         self.expected_api_base.update(
             {
@@ -1261,6 +1426,13 @@ class ContainerBuilderTest(unittest.TestCase):
                         labels={"riptide": "1"},
                     ),
                     Mount(target="bind2", source="host2", type="bind", read_only=False, consistency="delegated"),
+                    Mount(
+                        target=RIPSU_CONTAINER_PATH,
+                        source=expected_ripsu_host_path,
+                        type="bind",
+                        read_only=True,
+                        consistency="delegated",
+                    ),
                 ],
                 "environment": {
                     EENV_ORIGINAL_ENTRYPOINT: "",
@@ -1271,6 +1443,7 @@ class ContainerBuilderTest(unittest.TestCase):
                     EENV_HOST_SYSTEM_HOSTNAMES: " ".join(GET_LOCALHOSTS_HOSTS_RETURN),
                     EENV_OVERLAY_TARGETS: "",
                     EENV_NAMED_VOLUMES: "bind1",
+                    EENV_USE_RIPSU: "yes",
                 },
                 "labels": {
                     RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1",
@@ -1304,6 +1477,8 @@ class ContainerBuilderTest(unittest.TestCase):
             "-e",
             EENV_RUN_MAIN_CMD_AS_USER + "=yes",
             "-e",
+            EENV_USE_RIPSU + "=yes",
+            "-e",
             EENV_NAMED_VOLUMES + "=bind1",
             "--label",
             RIPTIDE_DOCKER_LABEL_IS_RIPTIDE + "=1",
@@ -1319,6 +1494,8 @@ class ContainerBuilderTest(unittest.TestCase):
             "type=volume,target=bind1,src=riptide__namedvolume,ro=1,volume-label=riptide=1",
             "--mount",
             "type=bind,dst=bind2,src=host2,ro=0",
+            "--mount",
+            f"type=bind,dst={RIPSU_CONTAINER_PATH},src={expected_ripsu_host_path},ro=1",
             IMAGE_NAME,
             COMMAND,
         ]
