@@ -10,6 +10,7 @@ from riptide.config.document.config import Config
 from riptide.config.document.service import Service
 from riptide.engine.results import ResultError, ResultQueue, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getgid, getuid
+from riptide_engine_docker.config import get_image_platform
 from riptide_engine_docker.container_builder import (
     EENV_GROUP,
     EENV_NO_STDOUT_REDIRECT,
@@ -85,7 +86,7 @@ def start(
             try:
                 queue.put(StartStopResultStep(current_step=current_step, steps=step_count, text="Pulling image... "))
                 image_name_full = service["image"] if ":" in service["image"] else service["image"] + ":latest"
-                for line in client.api.pull(image_name_full, stream=True):
+                for line in client.api.pull(image_name_full, stream=True, platform=get_image_platform()):
                     try:
                         status = json.loads(line)
                         if "progress" in status:

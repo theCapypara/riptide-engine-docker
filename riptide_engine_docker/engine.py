@@ -20,6 +20,7 @@ from riptide.engine.results import (
 )
 from riptide_engine_docker import named_volumes, network, path_utils, service
 from riptide_engine_docker.cmd_detached import cmd_detached
+from riptide_engine_docker.config import get_image_platform
 from riptide_engine_docker.container_builder import (
     RIPTIDE_DOCKER_LABEL_HTTP_PORT,
     get_service_container_name,
@@ -210,7 +211,7 @@ class DockerEngine(AbstractEngine):
         try:
             # TODO: This is pretty messy and should just be entirely redone, not
             # relying on the direct outout of the stream as-is.
-            for line in self.client.api.pull(image_name, stream=True):
+            for line in self.client.api.pull(image_name, stream=True, platform=get_image_platform()):
                 # On other OSes the API doesn't really seem to behave nicely,
                 # returning invalid or incomplete JSON
                 if platform.system() == "Linux":

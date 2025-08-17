@@ -10,6 +10,7 @@ from riptide.config.document.service import Service
 from riptide.config.files import CONTAINER_SRC_PATH, get_current_relative_src_path
 from riptide.engine.abstract import ExecError
 from riptide.lib.cross_platform.cpuser import getgid, getuid
+from riptide_engine_docker.config import get_image_platform
 from riptide_engine_docker.container_builder import (
     EENV_GROUP,
     EENV_NO_STDOUT_REDIRECT,
@@ -116,7 +117,10 @@ def fg(
     except NotFound:
         print("Riptide: Pulling image... Your command will be run after that.", file=sys.stderr)
         try:
-            client.api.pull(exec_object["image"] if ":" in exec_object["image"] else exec_object["image"] + ":latest")
+            client.api.pull(
+                exec_object["image"] if ":" in exec_object["image"] else exec_object["image"] + ":latest",
+                platform=get_image_platform(),
+            )
             client.images.get(exec_object["image"])  # must not throw
             image_config = client.api.inspect_image(exec_object["image"])["Config"]
         except ImageNotFound:

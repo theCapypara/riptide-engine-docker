@@ -7,6 +7,7 @@ from docker.errors import ContainerError, NotFound
 from riptide.config.document.command import Command
 from riptide.config.document.project import Project
 from riptide.lib.cross_platform.cpuser import getgid, getuid
+from riptide_engine_docker.config import get_image_platform
 from riptide_engine_docker.container_builder import (
     EENV_GROUP,
     EENV_NO_STDOUT_REDIRECT,
@@ -25,7 +26,7 @@ def cmd_detached(client: DockerClient, project: Project, command: Command, run_a
         client.images.get(command["image"])
     except NotFound:
         image_name_full = command["image"] if ":" in command["image"] else command["image"] + ":latest"
-        client.api.pull(image_name_full)
+        client.api.pull(image_name_full, platform=get_image_platform())
 
     client.images.get(command["image"])  # must not throw
     image_config = client.api.inspect_image(command["image"])["Config"]

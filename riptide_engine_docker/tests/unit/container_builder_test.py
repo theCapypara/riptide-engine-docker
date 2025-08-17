@@ -88,6 +88,28 @@ class ContainerBuilderTest(unittest.TestCase):
 
         isatty_mock.assert_called()
 
+    def test_with_custom_platform(self):
+        """Test when with a custom platform"""
+        expected_platform = "mygreat/platform"
+        os.environ["DOCKER_DEFAULT_PLATFORM"] = expected_platform
+        # Test API build
+        actual_api = self.fix.build_docker_api()
+        self.expected_api_base.update({"platform": expected_platform})
+        self.assertDictEqual(actual_api, self.expected_api_base)
+
+        # Test CLI build
+        expected_cli = self.expected_cli_base + [
+            "-e",
+            EENV_ON_LINUX + "=1",
+            "--label",
+            "riptide=1",
+            f"--platform={expected_platform}",
+            IMAGE_NAME,
+            COMMAND,
+        ]
+        actual_cli = self.fix.build_docker_cli()
+        self.assertListEqual(actual_cli, expected_cli)
+
     def test_command_list(self):
         test_obj = ContainerBuilder(image=IMAGE_NAME, command=[COMMAND, "elem2"])
         # Test API build
