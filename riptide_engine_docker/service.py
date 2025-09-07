@@ -1,4 +1,3 @@
-import copy
 import json
 import threading
 from json import JSONDecodeError
@@ -152,31 +151,35 @@ def start(
                         pass
 
                     # Fork built container configuration and adjust it for pre start container
-                    pre_start_config = copy.deepcopy(builder.build_docker_api())
+                    pre_start_builder = builder.clone()
+                    pre_start_builder.set_name(name + "__pre_start" + str(cmd_no))
+                    pre_start_builder.set_network(get_network_name(project_name))
+                    if (
+                        service["run_pre_start_as_current_user"]
+                        and EENV_RUN_MAIN_CMD_AS_USER not in pre_start_builder.env
+                    ):
+                        # Run with the current system user
+                        pre_start_builder.switch_to_normal_user(image_config)
+                        pre_start_builder.set_env(EENV_USER, str(getuid()))
+                        pre_start_builder.set_env(EENV_GROUP, str(getgid()))
+                    elif (
+                        not service["run_pre_start_as_current_user"]
+                        and EENV_RUN_MAIN_CMD_AS_USER in pre_start_builder.env
+                    ):
+                        pre_start_builder.set_env(EENV_RUN_MAIN_CMD_AS_USER, None)
+                    pre_start_builder.set_env(EENV_NO_STDOUT_REDIRECT, "1")
+                    pre_start_builder.set_env(EENV_ORIGINAL_ENTRYPOINT, '/bin/sh -c "' + cmd + '"')
+
+                    pre_start_config = pre_start_builder.build_docker_api()
+
+                    # Don't use ports and labels of actual service container
                     pre_start_config.update(
                         {
-                            "name": name + "__pre_start" + str(cmd_no),
-                            "network": get_network_name(project_name),
                             # Don't use ports and labels of actual service container
                             "ports": None,
                             "labels": {RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"},
                         }
                     )
-                    if (
-                        service["run_pre_start_as_current_user"]
-                        and EENV_RUN_MAIN_CMD_AS_USER not in pre_start_config["environment"]
-                    ):
-                        # Run with the current system user
-                        builder.switch_to_normal_user(image_config)
-                        pre_start_config["environment"][EENV_USER] = str(getuid())
-                        pre_start_config["environment"][EENV_GROUP] = str(getgid())
-                    elif (
-                        not service["run_pre_start_as_current_user"]
-                        and EENV_RUN_MAIN_CMD_AS_USER in pre_start_config["environment"]
-                    ):
-                        del pre_start_config["environment"][EENV_RUN_MAIN_CMD_AS_USER]
-                    pre_start_config["environment"][EENV_NO_STDOUT_REDIRECT] = "1"
-                    pre_start_config["environment"][EENV_ORIGINAL_ENTRYPOINT] = '/bin/sh -c "' + cmd + '"'
 
                     # RUN
                     container = client.containers.create(**pre_start_config)  # type: ignore

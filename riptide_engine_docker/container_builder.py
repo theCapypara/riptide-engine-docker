@@ -1,5 +1,5 @@
 """Container builder module."""
-
+import copy
 import os
 import platform
 import sys
@@ -460,6 +460,10 @@ class ContainerBuilder:
 
         shell += [self.image, (command + " " + " ".join(f'"{w}"' for w in self.args)).rstrip()]
         return shell
+
+    def clone(self):
+        """Clone this builder"""
+        return copy.deepcopy(self)
 
 
 def get_cmd_container_name(project_name: str, command_name: str):
