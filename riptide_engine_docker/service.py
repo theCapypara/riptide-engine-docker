@@ -7,6 +7,7 @@ from docker import DockerClient
 from docker.errors import APIError, ContainerError, NotFound
 from riptide.config.document.config import Config
 from riptide.config.document.service import Service
+from riptide.engine.error import NonInteractiveCommandRunError
 from riptide.engine.results import ResultError, ResultQueue, StartStopResultStep
 from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.config import get_image_platform
@@ -187,12 +188,14 @@ def start(
                     container.start()
                     exit_code = container.wait()
                     if exit_code["StatusCode"] != 0:
-                        raise ContainerError(
-                            container, exit_code["StatusCode"], cmd, service["image"], str(container.logs(stdout=False))
+                        raise NonInteractiveCommandRunError(
+                            exit_code["StatusCode"],
+                            container.logs(stdout=True).decode("utf-8"),
+                            container.logs(stdout=False).decode("utf-8"),
                         )
 
-                except (APIError, ContainerError) as err:
-                    queue.end_with_error(ResultError("ERROR running pre start command '" + cmd + "'.", cause=err))
+                except (APIError, ContainerError, NonInteractiveCommandRunError) as err:
+                    queue.end_with_error(ResultError("ERROR running pre start command `" + cmd + "`", cause=err))
                     stop(project_name, service["$name"], client)
                     return
 
