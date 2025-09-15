@@ -113,11 +113,12 @@ class DockerEngine(AbstractEngine):
         except APIError:
             return None
 
-    def cmd(self, project: Project, command_name: str, arguments: list[str], unimportant_paths_unsynced=False) -> int:
+    def cmd(self, command: Command, arguments: list[str], *, working_directory: str | None = None) -> int:
+        project = command.get_project()
         # Start network
         network.start(self.client, project["name"])
 
-        return cmd_fg(self.client, project, command_name, arguments)
+        return cmd_fg(self.client, project, command, arguments, working_directory)
 
     def cmd_in_service(self, project: Project, command_name: str, service_name: str, arguments: list[str]) -> int:
         # Check if service is running

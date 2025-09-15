@@ -80,15 +80,12 @@ def service_fg(client, project: Project, service_name: str, command_group: str, 
     fg(client, project, container_name, command_obj, arguments, command_group)
 
 
-def cmd_fg(client, project: Project, command_name: str, arguments: list[str]) -> int:
+def cmd_fg(client, project: Project, command_obj: Command, arguments: list[str], working_directory: str | None) -> int:
     """Run a command in foreground, returns the exit code"""
-    if command_name not in project["app"]["commands"]:
-        raise ExecError("Command not found.")
-
+    command_name = command_obj["$name"] if "$name" in command_obj else "cmd"
     container_name = get_cmd_container_name(project["name"], command_name)
-    command_obj = project["app"]["commands"][command_name]
 
-    return fg(client, project, container_name, command_obj, arguments, None)
+    return fg(client, project, container_name, command_obj, arguments, None, working_directory)
 
 
 def cmd_in_service_fg(client, project: Project, command_name: str, service_name: str, arguments: list[str]) -> int:
@@ -106,8 +103,8 @@ def fg(
     exec_object: Command | Service,
     arguments: list[str],
     command_group: str | None,
+    working_directory: str | None = None,
 ) -> int:
-    # TODO: Piping | <
     # TODO: Not only /src into container but everything
 
     # Check if image exists
@@ -140,7 +137,10 @@ def fg(
 
     builder = ContainerBuilder(exec_object["image"], command)
 
-    builder.set_workdir(CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project))
+    if not working_directory:
+        builder.set_workdir(CONTAINER_SRC_PATH + "/" + get_current_relative_src_path(project))
+    else:
+        builder.set_workdir(working_directory)
     builder.set_name(container_name)
     builder.set_network(get_network_name(project["name"]))
 
