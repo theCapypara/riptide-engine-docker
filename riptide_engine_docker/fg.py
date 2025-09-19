@@ -8,7 +8,7 @@ from riptide.config.document.command import Command
 from riptide.config.document.project import Project
 from riptide.config.document.service import Service
 from riptide.config.files import CONTAINER_SRC_PATH, get_current_relative_src_path
-from riptide.engine.abstract import ExecError
+from riptide.engine.abstract import ExecError, SimpleBindVolume
 from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.config import get_image_platform
 from riptide_engine_docker.container_builder import (
@@ -80,12 +80,19 @@ def service_fg(client, project: Project, service_name: str, command_group: str, 
     fg(client, project, container_name, command_obj, arguments, command_group)
 
 
-def cmd_fg(client, project: Project, command_obj: Command, arguments: list[str], working_directory: str | None) -> int:
+def cmd_fg(
+    client,
+    project: Project,
+    command_obj: Command,
+    arguments: list[str],
+    working_directory: str | None,
+    extra_volumes: dict[str, SimpleBindVolume] | None = None,
+) -> int:
     """Run a command in foreground, returns the exit code"""
     command_name = command_obj["$name"] if "$name" in command_obj else "cmd"
     container_name = get_cmd_container_name(project["name"], command_name)
 
-    return fg(client, project, container_name, command_obj, arguments, None, working_directory)
+    return fg(client, project, container_name, command_obj, arguments, None, working_directory, extra_volumes)
 
 
 def cmd_in_service_fg(client, project: Project, command_name: str, service_name: str, arguments: list[str]) -> int:
@@ -104,6 +111,7 @@ def fg(
     arguments: list[str],
     command_group: str | None,
     working_directory: str | None = None,
+    extra_volumes: dict[str, SimpleBindVolume] | None = None,
 ) -> int:
     # TODO: Not only /src into container but everything
 
@@ -158,6 +166,10 @@ def fg(
         builder.switch_to_normal_user(image_config)
         builder.set_env(EENV_USER, str(getuid()))
         builder.set_env(EENV_GROUP, str(getgid()))
+
+    if extra_volumes is not None:
+        for host, volume in extra_volumes.items():
+            builder.set_mount(host, volume["bind"], volume["mode"] or "rw")
 
     # Using a new thread:
     # Add the container link networks after docker run started... I tried a combo of Docker API create and Docker CLI
