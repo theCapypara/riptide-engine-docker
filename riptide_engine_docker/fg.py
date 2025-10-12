@@ -177,7 +177,7 @@ def fg(
     # so that's the best we can do
     AddNetLinks(container_name, client, project["links"]).start()
 
-    return _spawn(builder.build_docker_cli())
+    return _spawn(builder.build_docker_cli(True))
 
 
 def _spawn(shell: list[str]) -> int:

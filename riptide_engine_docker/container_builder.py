@@ -379,13 +379,15 @@ class ContainerBuilder:
 
         return args
 
-    def build_docker_cli(self) -> list[str]:
+    def build_docker_cli(self, run_with_init=False) -> list[str]:
         """
         Build the docker container in the form of a Docker CLI command.
         """
         shell = ["docker", "run", "--rm", "-i"]
         if sys.stdin.isatty():
             shell += ["-t"]
+        if run_with_init:
+            shell += ["--init"]
         if self.name:
             shell += ["--name", self.name]
 
