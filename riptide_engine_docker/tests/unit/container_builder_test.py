@@ -983,11 +983,11 @@ class ContainerBuilderTest(unittest.TestCase):
 
         service_stub = YamlConfigDocumentStub.make(
             DocumentClass.Service,
-            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": True, "dont_create_user": False}
+            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": True, "dont_create_user": False},
         )
         config_stub = YamlConfigDocumentStub.make(
             DocumentClass.Config,
-            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}},
         )
         project_stub = ProjectStub.make_project({"name": "PROJECTNAME"}, parent=config_stub)
 
