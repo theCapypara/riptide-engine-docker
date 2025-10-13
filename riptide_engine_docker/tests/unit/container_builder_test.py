@@ -982,12 +982,14 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
+            DocumentClass.Service,
             {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": True, "dont_create_user": False}
         )
         config_stub = YamlConfigDocumentStub.make(
+            DocumentClass.Config,
             {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
         )
-        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+        project_stub = ProjectStub.make_project({"name": "PROJECTNAME"}, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
