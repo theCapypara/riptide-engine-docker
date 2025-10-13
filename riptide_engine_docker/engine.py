@@ -10,7 +10,7 @@ from docker.errors import APIError, ImageNotFound
 from riptide.config.document.command import Command
 from riptide.config.document.project import Project
 from riptide.config.document.service import Service
-from riptide.engine.abstract import AbstractEngine, ServiceStoppedException
+from riptide.engine.abstract import AbstractEngine, ServiceStoppedException, SimpleBindVolume
 from riptide.engine.project_start_ctx import riptide_start_project_ctx
 from riptide.engine.results import (
     MultiResultQueue,
@@ -113,11 +113,19 @@ class DockerEngine(AbstractEngine):
         except APIError:
             return None
 
-    def cmd(self, project: Project, command_name: str, arguments: list[str], unimportant_paths_unsynced=False) -> int:
+    def cmd(
+        self,
+        command: Command,
+        arguments: list[str],
+        *,
+        working_directory: str | None = None,
+        extra_volumes: dict[str, SimpleBindVolume] | None = None,
+    ) -> int:
+        project = command.get_project()
         # Start network
         network.start(self.client, project["name"])
 
-        return cmd_fg(self.client, project, command_name, arguments)
+        return cmd_fg(self.client, project, command, arguments, working_directory, extra_volumes)
 
     def cmd_in_service(self, project: Project, command_name: str, service_name: str, arguments: list[str]) -> int:
         # Check if service is running

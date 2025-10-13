@@ -6,6 +6,7 @@ from unittest import mock
 from unittest.mock import MagicMock, Mock
 
 from docker.types import Mount
+from riptide.config.document import DocumentClass
 from riptide.tests.configcrunch_test_utils import YamlConfigDocumentStub
 from riptide.tests.stubs import ProjectStub
 from riptide_engine_docker.container_builder import (
@@ -726,18 +727,20 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
+            DocumentClass.Service,
             {
                 "$name": "SERVICENAME",
                 "roles": [],
                 "run_as_current_user": True,
                 "dont_create_user": False,
                 "logging": {"commands": {"name1": "command1", "name2": "command2"}},
-            }
+            },
         )
         config_stub = YamlConfigDocumentStub.make(
-            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+            DocumentClass.Config,
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}},
         )
-        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+        project_stub = ProjectStub.make(DocumentClass.Project, {"name": "PROJECTNAME"}, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={1234: 5678, 9876: 5432})
         service_stub.collect_volumes = MagicMock(
@@ -872,17 +875,19 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
+            DocumentClass.Service,
             {
                 "$name": "SERVICENAME",
                 "roles": [],
                 "run_as_current_user": True,
                 "dont_create_user": False,
-            }
+            },
         )
         config_stub = YamlConfigDocumentStub.make(
-            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+            DocumentClass.Config,
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}},
         )
-        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+        project_stub = ProjectStub.make(DocumentClass.Project, {"name": "PROJECTNAME"}, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
@@ -977,12 +982,14 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
-            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": True, "dont_create_user": False}
+            DocumentClass.Service,
+            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": True, "dont_create_user": False},
         )
         config_stub = YamlConfigDocumentStub.make(
-            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+            DocumentClass.Config,
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}},
         )
-        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+        project_stub = ProjectStub.make_project({"name": "PROJECTNAME"}, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
@@ -1089,12 +1096,14 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
-            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": False, "dont_create_user": False}
+            DocumentClass.Service,
+            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": False, "dont_create_user": False},
         )
         config_stub = YamlConfigDocumentStub.make(
-            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+            DocumentClass.Config,
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}},
         )
-        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+        project_stub = ProjectStub.make(DocumentClass.Project, {"name": "PROJECTNAME"}, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
@@ -1205,12 +1214,14 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
-            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": False, "dont_create_user": False}
+            DocumentClass.Service,
+            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": False, "dont_create_user": False},
         )
         config_stub = YamlConfigDocumentStub.make(
-            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+            DocumentClass.Config,
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}},
         )
-        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+        project_stub = ProjectStub.make(DocumentClass.Project, {"name": "PROJECTNAME"}, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
@@ -1302,12 +1313,14 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
-            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": False, "dont_create_user": True}
+            DocumentClass.Service,
+            {"$name": "SERVICENAME", "roles": ["main"], "run_as_current_user": False, "dont_create_user": True},
         )
         config_stub = YamlConfigDocumentStub.make(
-            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+            DocumentClass.Config,
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}},
         )
-        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+        project_stub = ProjectStub.make(DocumentClass.Project, {"name": "PROJECTNAME"}, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(return_value={})
@@ -1393,18 +1406,20 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         service_stub = YamlConfigDocumentStub.make(
-            {"$name": "SERVICENAME", "roles": [], "run_as_current_user": True, "dont_create_user": False}
+            DocumentClass.Service,
+            {"$name": "SERVICENAME", "roles": [], "run_as_current_user": True, "dont_create_user": False},
         )
         config_stub = YamlConfigDocumentStub.make(
+            DocumentClass.Config,
             {
                 "performance": {
                     # ENABLE FOR THIS TEST
                     "dont_sync_named_volumes_with_host": True,
                     "dont_sync_unimportant_src": False,
                 }
-            }
+            },
         )
-        project_stub = ProjectStub.make({"name": "PROJECTNAME"}, parent=config_stub)
+        project_stub = ProjectStub.make(DocumentClass.Project, {"name": "PROJECTNAME"}, parent=config_stub)
 
         service_stub.collect_ports = MagicMock(return_value={})
         service_stub.collect_volumes = MagicMock(
@@ -1526,7 +1541,7 @@ class ContainerBuilderTest(unittest.TestCase):
 
     @mock.patch("riptide_engine_docker.container_builder.find_open_port_starting_at", return_value=9876)
     def test_service_add_main_port(self, find_open_port_starting_at_mock: Mock):
-        service_stub = YamlConfigDocumentStub.make({"port": 4536})
+        service_stub = YamlConfigDocumentStub.make(DocumentClass.Service, {"port": 4536})
 
         service_stub.freeze()
 
@@ -1570,10 +1585,11 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         config_stub = YamlConfigDocumentStub.make(
-            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}}
+            DocumentClass.Config,
+            {"performance": {"dont_sync_named_volumes_with_host": False, "dont_sync_unimportant_src": False}},
         )
-        project_stub = YamlConfigDocumentStub.make({}, parent=config_stub)
-        command_stub = YamlConfigDocumentStub.make({"$name": "COMMANDNAME"})
+        project_stub = YamlConfigDocumentStub.make(DocumentClass.Project, {}, parent=config_stub)
+        command_stub = YamlConfigDocumentStub.make(DocumentClass.Command, {"$name": "COMMANDNAME"})
         command_stub.get_project = MagicMock(return_value=project_stub)
         command_stub.collect_volumes = MagicMock(
             return_value={
@@ -1659,16 +1675,17 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         config_stub = YamlConfigDocumentStub.make(
+            DocumentClass.Config,
             {
                 "performance": {
                     # ENABLED FOR THIS TEST:
                     "dont_sync_named_volumes_with_host": True,
                     "dont_sync_unimportant_src": False,
                 }
-            }
+            },
         )
-        project_stub = YamlConfigDocumentStub.make({}, parent=config_stub)
-        command_stub = YamlConfigDocumentStub.make({"$name": "COMMANDNAME"})
+        project_stub = YamlConfigDocumentStub.make(DocumentClass.Project, {}, parent=config_stub)
+        command_stub = YamlConfigDocumentStub.make(DocumentClass.Command, {"$name": "COMMANDNAME"})
         command_stub.get_project = MagicMock(return_value=project_stub)
         command_stub.collect_volumes = MagicMock(
             return_value={
@@ -1756,19 +1773,20 @@ class ContainerBuilderTest(unittest.TestCase):
         self.maxDiff = None
 
         config_stub = YamlConfigDocumentStub.make(
+            DocumentClass.Config,
             {
                 "performance": {
                     "dont_sync_named_volumes_with_host": False,
                     # ENABLED FOR THIS TEST:
                     "dont_sync_unimportant_src": True,
                 }
-            }
+            },
         )
-        project_stub = YamlConfigDocumentStub.make({}, parent=config_stub)
+        project_stub = YamlConfigDocumentStub.make(DocumentClass.Project, {}, parent=config_stub)
         app_stub = YamlConfigDocumentStub.make(
-            {"unimportant_paths": ["unimportant_1", "unimportant_2/subpath"]}, parent=project_stub
+            DocumentClass.App, {"unimportant_paths": ["unimportant_1", "unimportant_2/subpath"]}, parent=project_stub
         )
-        command_stub = YamlConfigDocumentStub.make({"$name": "COMMANDNAME"})
+        command_stub = YamlConfigDocumentStub.make(DocumentClass.Command, {"$name": "COMMANDNAME"})
         command_stub.get_project = MagicMock(return_value=project_stub)
         command_stub.parent = MagicMock(return_value=app_stub)
         command_stub.collect_volumes = MagicMock(return_value={})
