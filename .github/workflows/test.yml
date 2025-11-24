@@ -20,12 +20,12 @@ jobs:
         python-version: [ "3.11", "3.12", "3.13" ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: 'engine-docker'
           submodules: 'recursive'
       - name: Checkout riptide-lib
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: 'theCapypara/riptide-lib'
           path: 'lib'
