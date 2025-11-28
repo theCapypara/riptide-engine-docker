@@ -1,2 +1,0 @@
--e git+https://github.com/theCapypara/riptide-lib.git#egg=riptide-lib
-docker==7.1.0

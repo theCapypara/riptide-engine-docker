@@ -1,28 +1,32 @@
 """Container builder module."""
+
+import copy
 import os
 import platform
+import sys
 from collections import OrderedDict
 from pathlib import PurePosixPath
-from typing import List, Union
+from typing import TypeAlias, TypedDict
 
 from docker.types import Mount, Ulimit
-
 from riptide.config.document.command import Command
 from riptide.config.document.service import Service
 from riptide.config.hosts import get_localhost_hosts
 from riptide.config.service.ports import find_open_port_starting_at
 from riptide.lib.cross_platform.cpuser import getgid, getuid
 from riptide_engine_docker.assets import riptide_engine_docker_assets_dir
+from riptide_engine_docker.config import get_image_platform
 
-ENTRYPOINT_SH = 'entrypoint.sh'
+ENTRYPOINT_SH = "entrypoint.sh"
 
-RIPTIDE_DOCKER_LABEL_IS_RIPTIDE = 'riptide'
+RIPTIDE_DOCKER_LABEL_IS_RIPTIDE = "riptide"
 RIPTIDE_DOCKER_LABEL_SERVICE = "riptide_service"
 RIPTIDE_DOCKER_LABEL_PROJECT = "riptide_project"
 RIPTIDE_DOCKER_LABEL_MAIN = "riptide_main"
 RIPTIDE_DOCKER_LABEL_HTTP_PORT = "riptide_port"
 
-ENTRYPOINT_CONTAINER_PATH = '/entrypoint_riptide.sh'
+ENTRYPOINT_CONTAINER_PATH = "/entrypoint_riptide.sh"
+RIPSU_CONTAINER_PATH = "/ripsu"
 EENV_DONT_RUN_CMD = "RIPTIDE__DOCKER_DONT_RUN_CMD"
 EENV_USER = "RIPTIDE__DOCKER_USER"
 EENV_USER_RUN = "RIPTIDE__DOCKER_USER_RUN"
@@ -35,9 +39,32 @@ EENV_NAMED_VOLUMES = "RIPTIDE__DOCKER_NAMED_VOLUMES"
 EENV_ON_LINUX = "RIPTIDE__DOCKER_ON_LINUX"
 EENV_HOST_SYSTEM_HOSTNAMES = "RIPTIDE__DOCKER_HOST_SYSTEM_HOSTNAMES"
 EENV_OVERLAY_TARGETS = "RIPTIDE__DOCKER_OVERLAY_TARGETS"
+EENV_USE_RIPSU = "RIPTIDE__USE_RIPSU"
 
 # For services map HTTP main port to a host port starting here
 DOCKER_ENGINE_HTTP_PORT_BND_START = 30000
+
+ImageConfig: TypeAlias = dict[str, str]
+
+
+class DockerContainerCreate(TypedDict, total=False):
+    image: str
+    command: str | list[str] | None
+    name: str
+    network_mode: str
+    network: str
+    ports: dict[int, int] | None
+    entrypoint: list[str]
+    working_dir: str
+    user: int
+    hostname: str
+    ulimits: list[Ulimit]
+    cap_add: list[str]
+    security_opt: list[str]
+    environment: dict[str, str]
+    labels: dict[str, str]
+    mounts: list[Mount]
+    platform: str | None
 
 
 class ContainerBuilder:
@@ -47,50 +74,53 @@ class ContainerBuilder:
     the Docker CLI
     """
 
-    def __init__(self, image: str, command: Union[List, str, None]) -> None:
+    def __init__(self, image: str, command: list[str] | str | None) -> None:
         """Create a new container builder. Specify image and command to run."""
-        self.env = OrderedDict()
-        self.labels = OrderedDict()
-        self.mounts = OrderedDict()
-        self.ports = OrderedDict()
-        self.network = None
-        self.name = None
-        self.entrypoint = None
-        self.command = command
-        self.args = []
-        self.work_dir = None
-        self.image = image
+        self.env: OrderedDict[str, str] = OrderedDict()
+        self.labels: OrderedDict[str, str] = OrderedDict()
+        self.mounts: OrderedDict[str, Mount] = OrderedDict()
+        self.ports: OrderedDict[int, int] = OrderedDict()
+        self.network: str | None = None
+        self.name: str | None = None
+        self.entrypoint: str | None = None
+        self.command: list[str] | str | None = command
+        self.args: list[str] = []
+        self.work_dir: str | None = None
+        self.image: str = image
         self.set_label(RIPTIDE_DOCKER_LABEL_IS_RIPTIDE, "1")
-        self.run_as_root = False
-        self.hostname = None
-        self.allow_full_memlock = False
-        self.cap_sys_admin = False
-        self.use_host_network = False
+        self.run_as_root: bool = False
+        self.hostname: str | None = None
+        self.allow_full_memlock: bool = False
+        self.cap_sys_admin: bool = False
+        self.use_host_network: bool = False
 
-        self.on_linux = platform.system().lower().startswith('linux')
+        self.on_linux: bool = platform.system().lower().startswith("linux")
         self.set_env(EENV_ON_LINUX, "1" if self.on_linux else "0")
 
-        self.named_volumes_in_cnt = []
+        self.named_volumes_in_cnt: list[str] = []
 
-    def set_env(self, name: str, val: str):
-        self.env[name] = val
+    def set_env(self, name: str, val: str | None):
+        if val is None:
+            del self.env[name]
+        else:
+            self.env[name] = val
         return self
 
     def set_label(self, name: str, val: str):
         self.labels[name] = val
         return self
 
-    def set_mount(self, host_path: str, container_path: str, mode='rw'):
+    def set_mount(self, host_path: str, container_path: str, mode="rw"):
         self.mounts[host_path] = Mount(
             target=container_path,
             source=host_path,
-            type='bind',
-            read_only=mode == 'ro',
-            consistency='delegated'  # Performance setting for Docker Desktop on Mac
+            type="bind",
+            read_only=mode == "ro",
+            consistency="delegated",  # Performance setting for Docker Desktop on Mac
         )
         return self
 
-    def set_named_volume_mount(self, name: str, container_path: str, mode='rw'):
+    def set_named_volume_mount(self, name: str, container_path: str, mode="rw"):
         """
         Add a named volume. Name is automatically prefixed with riptide__.
         """
@@ -100,9 +130,9 @@ class ContainerBuilder:
         self.mounts[name] = Mount(
             target=container_path,
             source=vol_name,
-            type='volume',
-            read_only=mode == 'ro',
-            labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"}
+            type="volume",
+            read_only=mode == "ro",
+            labels={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1"},
         )
         self.named_volumes_in_cnt.append(container_path)
         return self
@@ -127,7 +157,7 @@ class ContainerBuilder:
         self.entrypoint = entrypoint
         return self
 
-    def set_args(self, args: List[str]):
+    def set_args(self, args: list[str]):
         self.args = args
         return self
 
@@ -143,7 +173,7 @@ class ContainerBuilder:
         self.allow_full_memlock = flag
         return self
 
-    def enable_riptide_entrypoint(self, image_config, enable_original_entrypoint=True):
+    def enable_riptide_entrypoint(self, image_config: ImageConfig, enable_original_entrypoint=True):
         """Add the Riptide entrypoint script and configure it."""
         # The original entrypoint of the image is replaced with
         # this custom entrypoint script, which may call the original entrypoint
@@ -153,7 +183,7 @@ class ContainerBuilder:
         # as root. It will handle the rest.
         self.run_as_root = True
         entrypoint_script = os.path.join(riptide_engine_docker_assets_dir(), ENTRYPOINT_SH)
-        self.set_mount(entrypoint_script, ENTRYPOINT_CONTAINER_PATH, 'ro')
+        self.set_mount(entrypoint_script, ENTRYPOINT_CONTAINER_PATH, "ro")
 
         # Activate the original entrypoint
         if enable_original_entrypoint:
@@ -169,9 +199,9 @@ class ContainerBuilder:
         """
         Adds all hostnames that must be routable to the host system within the container as a environment variable.
         """
-        self.set_env(EENV_HOST_SYSTEM_HOSTNAMES, ' '.join(get_localhost_hosts()))
+        self.set_env(EENV_HOST_SYSTEM_HOSTNAMES, " ".join(get_localhost_hosts()))
 
-    def _init_common(self, doc: Union[Service, Command], image_config, use_named_volume, unimportant_paths):
+    def _init_common(self, doc: Service | Command, image_config: ImageConfig, use_named_volume, unimportant_paths):
         disable_original_entrypoint = False
         if "ignore_original_entrypoint" in doc:
             disable_original_entrypoint = doc["ignore_original_entrypoint"]
@@ -180,15 +210,15 @@ class ContainerBuilder:
         self.add_host_hostnames()
         # Add volumes
         for host, volume in doc.collect_volumes().items():
-            if use_named_volume and 'name' in volume:
-                self.set_named_volume_mount(volume['name'], volume['bind'], volume['mode'] or 'rw')
+            if use_named_volume and "name" in volume:
+                self.set_named_volume_mount(volume["name"], volume["bind"], volume["mode"] or "rw")
             else:
-                self.set_mount(host, volume['bind'], volume['mode'] or 'rw')
+                self.set_mount(host, volume["bind"], volume["mode"] or "rw")
         # Collect environment
         for key, val in doc.collect_environment().items():
             self.set_env(key, val)
         # Add unimportant paths to the list of dirs to be used with overlayfs
-        self.set_env(EENV_OVERLAY_TARGETS, ':'.join(unimportant_paths))
+        self.set_env(EENV_OVERLAY_TARGETS, ":".join(unimportant_paths))
         # Mounting bind/overlayfs will require SYS_ADMIN caps:
         if len(unimportant_paths) > 0:
             self.cap_sys_admin = True
@@ -198,15 +228,15 @@ class ContainerBuilder:
         Initialize some data of this builder with the given service object.
         You need to call service_add_main_port separately.
         """
-        perf_settings = service.get_project().parent()['performance']
+        perf_settings = service.get_project().parent()["performance"]
         project_absolute_unimportant_paths = []
-        if perf_settings['dont_sync_unimportant_src'] and 'unimportant_paths' in service.parent():
-            project_absolute_unimportant_paths = [_make_abs_to_src(p) for p in service.parent()['unimportant_paths']]
+        if perf_settings["dont_sync_unimportant_src"] and "unimportant_paths" in service.parent():
+            project_absolute_unimportant_paths = [_make_abs_to_src(p) for p in service.parent()["unimportant_paths"]]
         self._init_common(
             service,
             image_config,
-            perf_settings['dont_sync_named_volumes_with_host'],
-            project_absolute_unimportant_paths
+            perf_settings["dont_sync_named_volumes_with_host"],
+            project_absolute_unimportant_paths,
         )
         # Collect labels
         labels = service_collect_labels(service, service.get_project()["name"])
@@ -214,12 +244,20 @@ class ContainerBuilder:
         ports = service.collect_ports()
         # All command logging commands are added as environment variables for the
         # riptide entrypoint
-        environment_updates = service_collect_logging_commands(service)
-        # User settings for the entrypoint
-        environment_updates.update(service_collect_entrypoint_user_settings(service, getuid(), getgid(), image_config))
-        # Add to builder
-        for key, value in environment_updates.items():
+        for key, value in service_collect_logging_commands(service).items():
             self.set_env(key, value)
+        # User settings for the entrypoint
+        if not service["dont_create_user"]:
+            self.set_env(EENV_USER, str(getuid()))
+            self.set_env(EENV_GROUP, str(getgid()))
+        if service["run_as_current_user"]:
+            # Run with the current system user
+            self.switch_to_normal_user(image_config)
+        elif "User" in image_config and image_config["User"] != "":
+            # If run_as_current_user is false and an user is configured in the image config, tell the entrypoint to run
+            # with this user
+            self.switch_to_normal_user(image_config)
+            self.set_env(EENV_USER_RUN, image_config["User"])
         for name, val in labels.items():
             self.set_label(name, val)
         for container, host in ports.items():
@@ -247,105 +285,119 @@ class ContainerBuilder:
         """
         Initialize some data of this builder with the given command object.
         """
-        perf_settings = command.get_project().parent()['performance']
+        perf_settings = command.get_project().parent()["performance"]
         project_absolute_unimportant_paths = []
-        if perf_settings['dont_sync_unimportant_src'] and 'unimportant_paths' in command.parent():
-            project_absolute_unimportant_paths = [_make_abs_to_src(p) for p in command.parent()['unimportant_paths']]
+        if perf_settings["dont_sync_unimportant_src"] and "unimportant_paths" in command.parent():
+            project_absolute_unimportant_paths = [_make_abs_to_src(p) for p in command.parent()["unimportant_paths"]]
         self._init_common(
             command,
             image_config,
-            perf_settings['dont_sync_named_volumes_with_host'],
-            project_absolute_unimportant_paths
+            perf_settings["dont_sync_named_volumes_with_host"],
+            project_absolute_unimportant_paths,
         )
         return self
 
-    def build_docker_api(self) -> dict:
+    def switch_to_normal_user(self, image_config):
+        self.set_env(EENV_RUN_MAIN_CMD_AS_USER, "yes")
+        architecture = "amd64"
+        if "Architecture" in image_config:
+            architecture = image_config["Architecture"]
+        if architecture in ("amd64", "arm64"):
+            self.set_env(EENV_USE_RIPSU, "yes")
+            ripsu_path = os.path.join(riptide_engine_docker_assets_dir(), "ripsu", f"ripsu-{architecture}")
+            self.set_mount(ripsu_path, RIPSU_CONTAINER_PATH, "ro")
+
+    def build_docker_api(self) -> DockerContainerCreate:
         """
         Build the docker container in the form of Docker API containers.run arguments.
         """
-        args = {
-            'image': self.image
-        }
+        args: DockerContainerCreate = {"image": self.image}
 
         if self.command is None:
-            args['command'] = None
+            args["command"] = None
         elif isinstance(self.command, str):
-
             # COMMAND IS STRING
-            args['command'] = self.command
+            command = self.command
             if len(self.args) > 0:
-                args['command'] += " " + " ".join(f'"{w}"' for w in self.args)
+                command += " " + " ".join(f'"{w}"' for w in self.args)
+            args["command"] = command
 
         else:
-
             list_command = self.command.copy()
             # COMMAND IS LIST
             if len(self.args) > 0:
                 list_command += self.args
 
             # Strange Docker API Bug (?) requires args with spaces to be quoted...
-            args['command'] = []
+            command_list = []
             for item in list_command:
                 if " " in item:
-                    args['command'].append('"' + item + '"')
+                    command_list.append('"' + item + '"')
                 else:
-                    args['command'].append(item)
+                    command_list.append(item)
+            args["command"] = command_list
 
         if self.name:
-            args['name'] = self.name
+            args["name"] = self.name
 
         if self.use_host_network:
-            args['network_mode'] = 'host'
+            args["network_mode"] = "host"
         else:
             if self.network:
-                args['network'] = self.network
-            args['ports'] = self.ports
+                args["network"] = self.network
+            args["ports"] = self.ports
 
         if self.entrypoint:
-            args['entrypoint'] = [self.entrypoint]
+            args["entrypoint"] = [self.entrypoint]
         if self.work_dir:
-            args['working_dir'] = self.work_dir
+            args["working_dir"] = self.work_dir
         if self.run_as_root:
-            args['user'] = 0
+            args["user"] = 0
         if self.hostname:
-            args['hostname'] = self.hostname
+            args["hostname"] = self.hostname
         if self.allow_full_memlock:
-            args['ulimits'] = [Ulimit(name='memlock', soft=-1, hard=-1)]
+            args["ulimits"] = [Ulimit(name="memlock", soft=-1, hard=-1)]
         if self.cap_sys_admin:
-            args['cap_add'] = ['SYS_ADMIN']
+            args["cap_add"] = ["SYS_ADMIN"]
             # Ubuntu and possibly other Distros:
             if self.on_linux:
-                args['security_opt'] = ['apparmor:unconfined']
+                args["security_opt"] = ["apparmor:unconfined"]
 
-        args['environment'] = self.env.copy()
+        args["environment"] = self.env.copy()
 
         # Add list of named volume paths for Docker to chown
         if len(self.named_volumes_in_cnt) > 0:
-            args['environment'][EENV_NAMED_VOLUMES] = ':'.join(self.named_volumes_in_cnt)
+            args["environment"][EENV_NAMED_VOLUMES] = ":".join(self.named_volumes_in_cnt)
 
-        args['labels'] = self.labels
+        args["labels"] = self.labels
 
-        args['mounts'] = list(self.mounts.values())
+        args["mounts"] = list(self.mounts.values())
+
+        image_platform = get_image_platform()
+        if image_platform is not None:
+            args["platform"] = image_platform
 
         return args
 
-    def build_docker_cli(self) -> List[str]:
+    def build_docker_cli(self, run_with_init=False) -> list[str]:
         """
         Build the docker container in the form of a Docker CLI command.
         """
-        shell = [
-            "docker", "run", "--rm", "-it"
-        ]
+        shell = ["docker", "run", "--rm", "-i"]
+        if sys.stdin.isatty():
+            shell += ["-t"]
+        if run_with_init:
+            shell += ["--init"]
         if self.name:
             shell += ["--name", self.name]
 
         if self.use_host_network:
-            shell += ["--network", 'host']
+            shell += ["--network", "host"]
         else:
             if self.network:
                 shell += ["--network", self.network]
             for container, host in self.ports.items():
-                shell += ['-p', str(host) + ':' + str(container)]
+                shell += ["-p", str(host) + ":" + str(container)]
 
         if self.entrypoint:
             shell += ["--entrypoint", self.entrypoint]
@@ -357,68 +409,79 @@ class ContainerBuilder:
             shell += ["--hostname", self.hostname]
 
         for key, value in self.env.items():
-            shell += ['-e', key + '=' + value]
+            shell += ["-e", key + "=" + value]
 
         # Add list of named volume paths for Docker to chown
         if len(self.named_volumes_in_cnt) > 0:
-            shell += ['-e', EENV_NAMED_VOLUMES + '=' + ':'.join(self.named_volumes_in_cnt)]
+            shell += ["-e", EENV_NAMED_VOLUMES + "=" + ":".join(self.named_volumes_in_cnt)]
 
         for key, value in self.labels.items():
-            shell += ['--label', key + '=' + value]
+            shell += ["--label", key + "=" + value]
 
         # Mac: Add delegated
-        mac_add = ',consistency=delegated' if platform.system().lower().startswith('mac') else ''
+        mac_add = ",consistency=delegated" if platform.system().lower().startswith("mac") else ""
         for mount in self.mounts.values():
-            mode = 'ro' if mount['ReadOnly'] else 'rw'
+            mode = "ro" if mount["ReadOnly"] else "rw"
             if mount["Type"] == "bind":
                 # --mount type=bind,src=/tmp/test,comma,dst=/tmp/test
-                shell += ['--mount',
-                          f'type=bind,dst={mount["Target"]},src={mount["Source"]},ro={"0" if mode == "rw" else "1"}' + mac_add]
+                shell += [
+                    "--mount",
+                    f"type=bind,dst={mount['Target']},src={mount['Source']},ro={'0' if mode == 'rw' else '1'}"
+                    + mac_add,
+                ]
             else:
-                shell += ['--mount',
-                          f'type=volume,target={mount["Target"]},src={mount["Source"]},ro={"0" if mode == "rw" else "1"},'
-                          f'volume-label={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE}=1']
+                shell += [
+                    "--mount",
+                    f"type=volume,target={mount['Target']},src={mount['Source']},ro={'0' if mode == 'rw' else '1'},"
+                    f"volume-label={RIPTIDE_DOCKER_LABEL_IS_RIPTIDE}=1",
+                ]
 
         # ulimits
         if self.allow_full_memlock:
-            shell += ['--ulimit', 'memlock=-1:-1']
+            shell += ["--ulimit", "memlock=-1:-1"]
 
         if self.cap_sys_admin:
-            shell += ['--cap-add=SYS_ADMIN']
+            shell += ["--cap-add=SYS_ADMIN"]
             # On Ubuntu and possibly other distros:
             if self.on_linux:
-                shell += ['--security-opt', 'apparmor:unconfined']
+                shell += ["--security-opt", "apparmor:unconfined"]
+
+        image_platform = get_image_platform()
+        if image_platform is not None:
+            shell += [f"--platform={image_platform}"]
 
         command = self.command
         if command is None:
             command = ""
         if isinstance(command, list):
-            command = self.command[0]
+            commandstr = command[0]
             # If the command itself contains arguments, they have to be joined with
             # quotes, just like self.args
-            if len(self.command) > 1:
-                command += " " + " ".join(f'"{w}"' for w in self.command[1:])
+            if len(command) > 1:
+                commandstr += " " + " ".join(f'"{w}"' for w in command[1:])
+            command = commandstr
 
-        shell += [
-            self.image,
-            (command + " " + " ".join(f'"{w}"' for w in self.args)).rstrip()
-        ]
+        shell += [self.image, (command + " " + " ".join(f'"{w}"' for w in self.args)).rstrip()]
         return shell
+
+    def clone(self):
+        """Clone this builder"""
+        return copy.deepcopy(self)
 
 
 def get_cmd_container_name(project_name: str, command_name: str):
-    return 'riptide__' + project_name + '__cmd__' + command_name + '__' + str(os.getpid())
+    return "riptide__" + project_name + "__cmd__" + command_name + "__" + str(os.getpid())
 
 
 def get_network_name(project_name: str):
-    return 'riptide__' + project_name
+    return "riptide__" + project_name
 
 
 def get_service_container_name(project_name: str, service_name: str):
-    return 'riptide__' + project_name + '__' + service_name
+    return "riptide__" + project_name + "__" + service_name
 
 
-def parse_entrypoint(image_config):
+def parse_entrypoint(image_config: ImageConfig):
     """
     Parse the original entrypoint of an image and return a map of variables for the riptide entrypoint script.
     RIPTIDE__DOCKER_ORIGINAL_ENTRYPOINT: Original entrypoint as string to be used with exec.
@@ -439,15 +502,10 @@ def parse_entrypoint(image_config):
         # Turn the list into a string, but quote all arguments
         command = entrypoint.pop(0)
         arguments = " ".join([f'"{entry}"' for entry in entrypoint])
-        return {
-            EENV_ORIGINAL_ENTRYPOINT: command + " " + arguments
-        }
+        return {EENV_ORIGINAL_ENTRYPOINT: command + " " + arguments}
     else:
         # shell format
-        return {
-            EENV_ORIGINAL_ENTRYPOINT: "/bin/sh -c " + entrypoint,
-            EENV_DONT_RUN_CMD: "true"
-        }
+        return {EENV_ORIGINAL_ENTRYPOINT: "/bin/sh -c " + entrypoint, EENV_DONT_RUN_CMD: "true"}
 
 
 def service_collect_logging_commands(service: Service) -> dict:
@@ -460,31 +518,12 @@ def service_collect_logging_commands(service: Service) -> dict:
     return environment
 
 
-def service_collect_entrypoint_user_settings(service: Service, user, user_group, image_config) -> dict:
-    environment = {}
-
-    if not service["dont_create_user"]:
-        environment[EENV_USER] = str(user)
-        environment[EENV_GROUP] = str(user_group)
-
-    if service["run_as_current_user"]:
-        # Run with the current system user
-        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-    elif "User" in image_config and image_config["User"] != "":
-        # If run_as_current_user is false and an user is configured in the image config, tell the entrypoint to run
-        # with this user
-        environment[EENV_RUN_MAIN_CMD_AS_USER] = "yes"
-        environment[EENV_USER_RUN] = image_config["User"]
-
-    return environment
-
-
 def service_collect_labels(service: Service, project_name):
     labels = {
-        RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: '1',
+        RIPTIDE_DOCKER_LABEL_IS_RIPTIDE: "1",
         RIPTIDE_DOCKER_LABEL_PROJECT: project_name,
         RIPTIDE_DOCKER_LABEL_SERVICE: service["$name"],
-        RIPTIDE_DOCKER_LABEL_MAIN: "0"
+        RIPTIDE_DOCKER_LABEL_MAIN: "0",
     }
     if "roles" in service and "main" in service["roles"]:
         labels[RIPTIDE_DOCKER_LABEL_MAIN] = "1"

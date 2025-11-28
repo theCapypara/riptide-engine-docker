@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "riptide-engine-docker"
-version = "0.9.2"
+version = "0.10.0"
 description = "Tool to manage development environments for web applications using containers - Docker Implementation"
-readme = "README.rst"
-requires-python = ">=3.8"
-license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
 authors = [
     { name = "Marco Köpcke", email = "hello@capypara.de" }
 ]
@@ -16,25 +16,38 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "riptide-lib >= 0.9, < 0.10",
-    "docker >= 4.1"
+    "riptide-lib >= 0.10, < 0.11",
+    "docker >= 7.1"
 ]
 
 [project.urls]
 Repository = "https://github.com/theCapypara/riptide-engine-docker"
 Documentation = "https://riptide-docs.readthedocs.io"
 
+[tool.setuptools.packages.find]
+exclude = ["test_assets", "test_reports"]
+
 [project.entry-points."riptide.engine"]
 docker = "riptide_engine_docker.engine:DockerEngine"
 
 [project.entry-points."riptide.engine.tests"]
 docker = "riptide_engine_docker.tests.integration.tester:DockerEngineTester"
+
+[tool.ruff]
+line-length = 120
+
+[tools.ruff.lint]
+select = ["W", "E", "F", "ARG"]
+
+[tool.mypy]
+warn_unused_configs = true
+mypy_path = "."
+explicit_package_bases = true
+namespace_packages = true
+check_untyped_defs = true

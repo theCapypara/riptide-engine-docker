@@ -54,6 +54,9 @@
 # RIPTIDE__DOCKER_ON_LINUX:
 #   "1": Docker is running natively on Linux
 #   "0": Docker is running via a Linux VM.
+#
+# RIPTIDE__USE_RIPSU:
+#   If set, use ripsu instead of su whereever su would be used
 
 if [ -z "$RIPTIDE__DOCKER_NO_STDOUT_REDIRECT" ]
 then
@@ -171,8 +174,13 @@ fi
 # PREPARE SU COMMAND AND ENV
 if [ ! -z "$RIPTIDE__DOCKER_RUN_MAIN_CMD_AS_USER" ]; then
     USERNAME=$(getent passwd "$RIPTIDE__DOCKER_USER_RUN" | cut -d: -f1)
-    SU_PREFIX="su $USERNAME -m -c '"
-    SU_POSTFIX="'"
+    if [ ! -z "$RIPTIDE__USE_RIPSU" ]; then
+      SU_PREFIX="/ripsu $USERNAME "
+      SU_POSTFIX=""
+    else
+      SU_PREFIX="su $USERNAME -m -c '"
+      SU_POSTFIX="'"
+    fi
     export HOME=/home/riptide
 fi
 
